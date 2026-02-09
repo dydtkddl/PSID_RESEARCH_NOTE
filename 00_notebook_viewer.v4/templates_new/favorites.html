@@ -1,0 +1,185 @@
+﻿{% extends "base.html" %}
+
+{% block title %}즐겨찾기 - Research Platform{% endblock %}
+
+{% block breadcrumb %}
+<a href="{{ root_path }}/">홈</a>
+<i class="ri-arrow-right-s-line"></i>
+<span>즐겨찾기</span>
+{% endblock %}
+
+{% block content %}
+<div class="favorites-page">
+    <header class="page-header">
+        <div class="header-info">
+            <h1><i class="ri-star-fill" style="color: var(--accent-warning);"></i> 즐겨찾기</h1>
+            <p>자주 참조하는 문서들을 빠르게 접근하세요</p>
+        </div>
+    </header>
+    
+    <div class="documents-container">
+        <div class="documents-list" id="favorites-list">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <p>즐겨찾기를 불러오는 중...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.favorites-page {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.page-header {
+    margin-bottom: 32px;
+}
+
+.page-header h1 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.page-header p {
+    color: var(--text-secondary);
+}
+
+.documents-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.document-row {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s;
+}
+
+.document-row:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+}
+
+.doc-icon {
+    font-size: 1.5rem;
+    margin-right: 16px;
+}
+
+.doc-info {
+    flex: 1;
+}
+
+.doc-title {
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.doc-meta {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+.doc-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 64px 32px;
+    color: var(--text-tertiary);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 16px;
+}
+
+.loading-state {
+    text-align: center;
+    padding: 64px;
+}
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', loadFavorites);
+
+async function loadFavorites() {
+    const container = document.getElementById('favorites-list');
+    
+    try {
+        const documents = await api.get('/users/me/favorites');
+        
+        if (!documents || documents.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="ri-star-line"></i>
+                    <p>즐겨찾기한 문서가 없습니다</p>
+                    <a href="{{ root_path }}/" class="btn btn-primary" style="margin-top: 16px;">문서 둘러보기</a>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = documents.map(doc => `
+            <a href="{{ root_path }}/documents/${doc.id}" class="document-row">
+                <span class="doc-icon">${doc.icon || '📄'}</span>
+                <div class="doc-info">
+                    <div class="doc-title">${escapeHtml(doc.title)}</div>
+                    <div class="doc-meta">
+                        ${doc.workspace_name ? doc.workspace_name + ' · ' : ''}
+                        ${formatDate(doc.updated_at)}
+                    </div>
+                </div>
+                <div class="doc-actions">
+                    <button class="btn btn-icon btn-sm unfavorite-btn" data-id="${doc.id}" title="즐겨찾기 해제">
+                        <i class="ri-star-fill" style="color: var(--accent-warning);"></i>
+                    </button>
+                </div>
+            </a>
+        `).join('');
+        
+        // Unfavorite buttons
+        container.querySelectorAll('.unfavorite-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                try {
+                    await api.delete(`/documents/${btn.dataset.id}/favorite`);
+                    btn.closest('.document-row').remove();
+                    toast.success('즐겨찾기가 해제되었습니다');
+                    
+                    // Check if empty
+                    if (container.children.length === 0) {
+                        loadFavorites();
+                    }
+                } catch (error) {
+                    toast.error('오류가 발생했습니다');
+                }
+            });
+        });
+    } catch (error) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="ri-error-warning-line"></i>
+                <p>즐겨찾기를 불러올 수 없습니다</p>
+            </div>
+        `;
+    }
+}
+</script>
+{% endblock %}
+

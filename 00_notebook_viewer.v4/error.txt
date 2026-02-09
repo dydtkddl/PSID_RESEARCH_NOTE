@@ -1,0 +1,83 @@
+﻿python : Traceback (most rece
+nt call last):
+위치 줄:1 문자:1
++ python -c "from app.models.
+user import User" 2>&1 | Out-
+File -FilePat ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo           
+   : NotSpecified: (Traceba  
+  ck (most recent call las   
+ t)::String) [], RemoteEx    
+ception
+    + FullyQualifiedErrorId  
+   : NativeCommandError
+ 
+  File "<string>", line 1, in
+ <module>
+    from app.models.user impo
+rt User
+  File "C:\Users\user\Desktop
+\Reseach_Note\00_notebook_vie
+wer.v4\app\models\__init__.py
+", line 5, in <module>
+    from app.models.document 
+import Document, DocumentVers
+ion
+  File "C:\Users\user\Desktop
+\Reseach_Note\00_notebook_vie
+wer.v4\app\models\document.py
+", line 41, in <module>
+    class Document(Base):
+    ...<141 lines>...
+            return self.delet
+ed_at is not None
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\orm\decl_api.py", line 845
+, in __init_subclass__
+    _as_declarative(cls._sa_r
+egistry, cls, cls.__dict__)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\orm\decl_base.py", line 24
+5, in _as_declarative
+    return _MapperConfig.setu
+p_mapping(registry, cls, dict
+_, None, {})
+           ~~~~~~~~~~~~~~~~~~
+~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\orm\decl_base.py", line 32
+6, in setup_mapping
+    return _ClassScanMapperCo
+nfig(
+        registry, cls_, dict_
+, table, mapper_kw
+    )
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\orm\decl_base.py", line 57
+3, in __init__
+    self._extract_mappable_at
+tributes()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\orm\decl_base.py", line 15
+30, in _extract_mappable_attr
+ibutes
+    raise exc.InvalidRequestE
+rror(
+    ...<2 lines>...
+    )
+sqlalchemy.exc.InvalidRequest
+Error: Attribute name 'metada
+ta' is reserved when using th
+e Declarative API.

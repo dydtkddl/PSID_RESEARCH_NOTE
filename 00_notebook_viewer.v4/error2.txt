@@ -1,0 +1,338 @@
+﻿python : Traceback (most rece
+nt call last):
+위치 줄:1 문자:1
++ python -c "from app.databas
+e import init_db; init_db(); 
+print('DB ini ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~
+    + CategoryInfo           
+   : NotSpecified: (Traceba  
+  ck (most recent call las   
+ t)::String) [], RemoteEx    
+ception
+    + FullyQualifiedErrorId  
+   : NativeCommandError
+ 
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\engine\base.py", line 143,
+ in __init__
+    self._dbapi_connection = 
+engine.raw_connection()
+                             
+~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\engine\base.py", line 3301
+, in raw_connection
+    return self.pool.connect(
+)
+           ~~~~~~~~~~~~~~~~~^
+^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\pool\base.py", line 447, i
+n connect
+    return _ConnectionFairy._
+checkout(self)
+           ~~~~~~~~~~~~~~~~~~
+~~~~~~~~^^^^^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\pool\base.py", line 1264, 
+in _checkout
+    fairy = _ConnectionRecord
+.checkout(pool)
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\pool\base.py", line 711, i
+n checkout
+    rec = pool._do_get()
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\pool\impl.py", line 505, i
+n _do_get
+    rec = self.connection
+          ^^^^^^^^^^^^^^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\util\langhelpers.py", line
+ 1226, in __get__
+    obj.__dict__[self.__name_
+_] = result = self.fget(obj)
+                             
+              ~~~~~~~~~^^^^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\pool\impl.py", line 462, i
+n connection
+    return _ConnectionRecord(
+self)
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\pool\base.py", line 673, i
+n __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\pool\base.py", line 899, i
+n __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\util\langhelpers.py", line
+ 224, in __exit__
+    raise exc_value.with_trac
+eback(exc_tb)
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\pool\base.py", line 895, i
+n __connect
+    self.dbapi_connection = c
+onnection = pool._invoke_crea
+tor(self)
+                             
+            ~~~~~~~~~~~~~~~~~
+~~~^^^^^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\engine\create.py", line 66
+1, in connect
+    return dialect.connect(*c
+args, **cparams)
+           ~~~~~~~~~~~~~~~^^^
+^^^^^^^^^^^^^^^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\engine\default.py", line 6
+29, in connect
+    return self.loaded_dbapi.
+connect(*cargs, **cparams)  #
+ type: ignore[no-any-return] 
+ # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~
+~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\psycopg2
+\__init__.py", line 134, in c
+onnect
+    dsn = _ext.make_dsn(dsn, 
+**kwargs)
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\psycopg2
+\extensions.py", line 167, in
+ make_dsn
+    parse_dsn(dsn)
+    ~~~~~~~~~^^^^^
+psycopg2.ProgrammingError: in
+valid dsn: invalid connection
+ option "check_same_thread"
+
+
+The above exception was the d
+irect cause of the following 
+exception:
+
+Traceback (most recent call l
+ast):
+  File "<string>", line 1, in
+ <module>
+    from app.database import 
+init_db; init_db(); print('DB
+ initialized!')
+                             
+         ~~~~~~~^^
+  File "C:\Users\user\Desktop
+\Reseach_Note\00_notebook_vie
+wer.v4\app\database.py", line
+ 59, in init_db
+    Base.metadata.create_all(
+bind=engine)
+    ~~~~~~~~~~~~~~~~~~~~~~~~^
+^^^^^^^^^^^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\sql\schema.py", line 5924,
+ in create_all
+    bind._run_ddl_visitor(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        ddl.SchemaGenerator, 
+self, checkfirst=checkfirst, 
+tables=tables
+        ^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\engine\base.py", line 3251
+, in _run_ddl_visitor
+    with self.begin() as conn
+:
+         ~~~~~~~~~~^^
+  File "C:\Users\user\anacond
+a3\Lib\contextlib.py", line 1
+41, in __enter__
+    return next(self.gen)
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\engine\base.py", line 3241
+, in begin
+    with self.connect() as co
+nn:
+         ~~~~~~~~~~~~^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\engine\base.py", line 3277
+, in connect
+    return self._connection_c
+ls(self)
+           ~~~~~~~~~~~~~~~~~~
+~~^^^^^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\engine\base.py", line 145,
+ in __init__
+    Connection._handle_dbapi_
+exception_noconnection(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~^
+        err, dialect, engine
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\engine\base.py", line 2440
+, in _handle_dbapi_exception_
+noconnection
+    raise sqlalchemy_exceptio
+n.with_traceback(exc_info[2])
+ from e
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\engine\base.py", line 143,
+ in __init__
+    self._dbapi_connection = 
+engine.raw_connection()
+                             
+~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\engine\base.py", line 3301
+, in raw_connection
+    return self.pool.connect(
+)
+           ~~~~~~~~~~~~~~~~~^
+^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\pool\base.py", line 447, i
+n connect
+    return _ConnectionFairy._
+checkout(self)
+           ~~~~~~~~~~~~~~~~~~
+~~~~~~~~^^^^^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\pool\base.py", line 1264, 
+in _checkout
+    fairy = _ConnectionRecord
+.checkout(pool)
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\pool\base.py", line 711, i
+n checkout
+    rec = pool._do_get()
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\pool\impl.py", line 505, i
+n _do_get
+    rec = self.connection
+          ^^^^^^^^^^^^^^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\util\langhelpers.py", line
+ 1226, in __get__
+    obj.__dict__[self.__name_
+_] = result = self.fget(obj)
+                             
+              ~~~~~~~~~^^^^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\pool\impl.py", line 462, i
+n connection
+    return _ConnectionRecord(
+self)
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\pool\base.py", line 673, i
+n __init__
+    self.__connect()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\pool\base.py", line 899, i
+n __connect
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\util\langhelpers.py", line
+ 224, in __exit__
+    raise exc_value.with_trac
+eback(exc_tb)
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\pool\base.py", line 895, i
+n __connect
+    self.dbapi_connection = c
+onnection = pool._invoke_crea
+tor(self)
+                             
+            ~~~~~~~~~~~~~~~~~
+~~~^^^^^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\engine\create.py", line 66
+1, in connect
+    return dialect.connect(*c
+args, **cparams)
+           ~~~~~~~~~~~~~~~^^^
+^^^^^^^^^^^^^^^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\sqlalche
+my\engine\default.py", line 6
+29, in connect
+    return self.loaded_dbapi.
+connect(*cargs, **cparams)  #
+ type: ignore[no-any-return] 
+ # NOQA: E501
+           ~~~~~~~~~~~~~~~~~~
+~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\psycopg2
+\__init__.py", line 134, in c
+onnect
+    dsn = _ext.make_dsn(dsn, 
+**kwargs)
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\psycopg2
+\extensions.py", line 167, in
+ make_dsn
+    parse_dsn(dsn)
+    ~~~~~~~~~^^^^^
+sqlalchemy.exc.ProgrammingErr
+or: (psycopg2.ProgrammingErro
+r) invalid dsn: invalid conne
+ction option "check_same_thre
+ad"
+
+(Background on this error at:
+ https://sqlalche.me/e/20/f40
+5)

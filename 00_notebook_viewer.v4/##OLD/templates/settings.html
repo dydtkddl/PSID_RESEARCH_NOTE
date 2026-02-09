@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>프로젝트 테마 설정</h2>
+<p class="meta">
+  프로젝트: {{ project_name }}<br>
+  경로: {{ project_rel_path }}
+</p>
+
+<form method="post"
+      action="{{ url_for('settings_save') }}"
+      class="settings-form"
+      style="max-width: 480px; margin-top: 12px;">
+  <input type="hidden" name="rel_path" value="{{ project_rel_path }}">
+
+  <div class="settings-row"
+       style="display: flex; flex-wrap: wrap;
+              gap: 8px; align-items: center; margin-bottom: 8px;">
+    <label for="card_bg" style="min-width: 130px;">
+      카드 배경색
+    </label>
+    <input type="color"
+           id="card_bg"
+           name="card_bg"
+           value="{{ theme.card_bg }}">
+  </div>
+
+  <div class="settings-row"
+       style="display: flex; flex-wrap: wrap;
+              gap: 8px; align-items: center; margin-bottom: 8px;">
+    <label for="card_border" style="min-width: 130px;">
+      카드 테두리색
+    </label>
+    <input type="color"
+           id="card_border"
+           name="card_border"
+           value="{{ theme.card_border }}">
+  </div>
+
+  <div class="settings-row"
+       style="display: flex; flex-wrap: wrap;
+              gap: 8px; align-items: center; margin-bottom: 8px;">
+    <label for="accent" style="min-width: 130px;">
+      포커스 / 버튼 색 (accent)
+    </label>
+    <input type="color"
+           id="accent"
+           name="accent"
+           value="{{ theme.accent }}">
+  </div>
+
+  <div class="settings-row"
+       style="display: flex; flex-wrap: wrap;
+              gap: 8px; align-items: center; margin-bottom: 8px;">
+    <label for="header_bg" style="min-width: 130px;">
+      헤더 배경색
+    </label>
+    <input type="color"
+           id="header_bg"
+           name="header_bg"
+           value="{{ theme.header_bg }}">
+  </div>
+
+  <div class="settings-actions" style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+    <button type="submit" class="btn">저장</button>
+    <a href="{{ url_for('project_view') }}?rel_path={{ project_rel_path }}"
+       class="btn-secondary">
+      취소
+    </a>
+  </div>
+</form>
+
+{% endblock %}

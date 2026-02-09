@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ title if title else "연구노트 뷰어" }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+
+  <!-- 다크 모드 초기값 (페이지 로드 전에 설정) -->
+  <script>
+    (function () {
+      try {
+        const saved = localStorage.getItem('nv_theme');
+        const mode = saved === 'dark' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', mode);
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    })();
+  </script>
+
+  <!-- MathJax (pymdownx.arithmatex용) -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['\\(', '\\)'], ['$', '$']],
+        displayMath: [['\\[', '\\]'], ['$$', '$$']]
+      },
+      options: {
+        renderActions: {
+          addMenu: []
+        }
+      }
+    };
+  </script>
+  <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <h1 class="logo">
+        <a href="{{ url_for('index') }}">연구노트 뷰어</a>
+      </h1>
+      <nav class="header-nav">
+        <a href="{{ url_for('index') }}">프로젝트</a>
+        <a href="{{ url_for('search_view') }}">검색</a>
+        <a href="{{ url_for('tasks_view') }}">할 일</a>
+        <a href="{{ url_for('debug_log_view') }}">로그</a>
+      </nav>
+      <button id="theme-toggle" type="button" class="btn-secondary btn-small">
+        🌙
+      </button>
+    </div>
+  </header>
+
+  <main class="main">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script>
+    // 다크 모드 토글
+    (function () {
+      const btn = document.getElementById('theme-toggle');
+      if (!btn) return;
+      function updateLabel(mode) {
+        btn.textContent = mode === 'dark' ? '☀️' : '🌙';
+      }
+      function currentMode() {
+        return document.documentElement.getAttribute('data-theme') || 'light';
+      }
+      updateLabel(currentMode());
+      btn.addEventListener('click', function () {
+        const cur = currentMode();
+        const next = cur === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        try {
+          localStorage.setItem('nv_theme', next);
+        } catch (e) {}
+        updateLabel(next);
+      });
+    })();
+
+    // 코드 블록 Copy 버튼
+    document.addEventListener('DOMContentLoaded', function () {
+      const containers = document.querySelectorAll('.markdown-body pre code');
+      containers.forEach(function (codeBlock) {
+        const pre = codeBlock.parentNode;
+        const wrapper = document.createElement('div');
+        wrapper.className = 'code-wrapper';
+
+        pre.parentNode.insertBefore(wrapper, pre);
+        wrapper.appendChild(pre);
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn-copy';
+        btn.textContent = 'Copy';
+
+        btn.addEventListener('click', function () {
+          const text = codeBlock.innerText || codeBlock.textContent || '';
+          navigator.clipboard.writeText(text).then(function () {
+            const old = btn.textContent;
+            btn.textContent = 'Copied';
+            setTimeout(function () { btn.textContent = old; }, 1500);
+          });
+        });
+
+        wrapper.insertBefore(btn, pre);
+      });
+    });
+  </script>
+</body>
+</html>

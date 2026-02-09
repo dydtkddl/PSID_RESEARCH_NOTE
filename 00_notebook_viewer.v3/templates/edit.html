@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+  {% if image_base_dir %}
+    <base href="{{ url_for('serve_media', rel_path=image_base_dir) }}/">
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<div class="project-header"
+     style="--accent-color: {{ theme.accent }}; flex-wrap: wrap; gap: 8px;">
+  <div>
+    <h2>문서 편집: {{ file_name }}</h2>
+    <p class="meta">경로: {{ rel_path }}</p>
+  </div>
+  <div class="project-header-actions"
+       style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end;">
+    <a class="btn-secondary"
+       href="{{ url_for('view_file') }}?rel_path={{ rel_path }}">
+      ← 상세보기로
+    </a>
+  </div>
+</div>
+
+<form method="post"
+      action="{{ url_for('save_file') }}"
+      class="editor-form">
+  <input type="hidden" name="rel_path" value="{{ rel_path }}">
+
+  <div class="editor-wrapper editor-split">
+    <!-- 왼쪽: 에디터 -->
+    <div class="editor-pane">
+      <label for="editor" class="meta">Markdown 내용</label>
+      <textarea id="editor"
+                name="content"
+                class="editor-textarea"
+                spellcheck="false">{{ raw_content }}</textarea>
+      <p class="meta">
+        ● 텍스트 영역을 클릭한 뒤 이미지 클립보드(Ctrl+V) 붙여넣기 →  
+        서버에 업로드 후 <code>![...](...)</code> 링크 자동 삽입<br>
+        ● 프로젝트 기준 이미지 폴더: <code>{{ image_base_dir }}</code>
+      </p>
+    </div>
+
+    <!-- 오른쪽: 미리보기 -->
+    <div class="preview-pane">
+      <div class="preview-header">라이브 미리보기</div>
+      <div id="preview" class="preview-body markdown-body"></div>
+    </div>
+  </div>
+
+  <div class="editor-actions">
+    <button type="submit" class="btn">저장</button>
+    <button type="button" class="btn-secondary" onclick="window.history.back()">취소</button>
+  </div>
+</form>
+
+<script>
+  const editor = document.getElementById('editor');
+  const imageBaseDir = "{{ image_base_dir }}";
+  const uploadUrl = "{{ url_for('upload_image') }}";
+  const previewUrl = "{{ url_for('render_preview') }}";
+  const preview = document.getElementById('preview');
+
+  const log = (...args) => console.log("[EDIT]", ...args);
+
+  function insertAtCursor(textarea, text) {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const value = textarea.value;
+    textarea.value = value.substring(0, start) + text + value.substring(end);
+    const pos = start + text.length;
+    textarea.selectionStart = textarea.selectionEnd = pos;
+    textarea.focus();
+  }
+
+  function schedulePreviewUpdate() {
+    if (!preview || !editor) return;
+
+    if (window.__previewTimer) {
+      clearTimeout(window.__previewTimer);
+    }
+    window.__previewTimer = setTimeout(() => {
+      const formData = new FormData();
+
+      const value = editor.value;
+      const caretPos = editor.selectionStart || 0;
+      const marker = "\n\n<div id=\"__cursor_marker__\"></div>\n\n";
+      const withMarker = value.slice(0, caretPos) + marker + value.slice(caretPos);
+
+      formData.append('content', withMarker);
+
+      const prevScrollTop = preview.scrollTop;
+      const prevMax = Math.max(1, preview.scrollHeight - preview.clientHeight);
+      const prevRatio = prevScrollTop / prevMax;
+
+      fetch(previewUrl, {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => res.text())
+      .then(html => {
+        preview.innerHTML = html;
+
+        // ✅ MathJax 재렌더
+        if (window.MathJax && MathJax.typesetPromise) {
+          MathJax.typesetPromise([preview]).catch(err => console.error('MathJax typeset error', err));
+        }
+
+        const markerEl = preview.querySelector('#__cursor_marker__');
+        if (markerEl) {
+          markerEl.scrollIntoView({ block: 'center' });
+        } else {
+          const max = Math.max(1, preview.scrollHeight - preview.clientHeight);
+          preview.scrollTop = max * prevRatio;
+        }
+      })
+      .catch(err => {
+        console.error('preview error', err);
+      });
+    }, 200);
+  }
+
+  editor.addEventListener('input', schedulePreviewUpdate);
+  editor.addEventListener('click', schedulePreviewUpdate);
+  editor.addEventListener('keyup', schedulePreviewUpdate);
+  window.addEventListener('load', schedulePreviewUpdate);
+
+  // =========================
+  // ✅ viewer의 "여기부터 수정" 지원
+  // - focus=1&snippet=...&start=...
+  // =========================
+  function escapeRegExp(s) {
+    return (s || "").replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function findAllOccurrences(haystack, needle) {
+    const out = [];
+    if (!needle) return out;
+    let idx = 0;
+    while (true) {
+      const i = haystack.indexOf(needle, idx);
+      if (i === -1) break;
+      out.push(i);
+      idx = i + Math.max(1, needle.length);
+    }
+    return out;
+  }
+
+  function findBestIndexInMarkdown(md, snippet, startHint) {
+    const text = (snippet || "").trim();
+    if (!text) return 0;
+
+    // 1) exact match
+    const hits = findAllOccurrences(md, text);
+    if (hits.length === 1) return hits[0];
+    if (hits.length > 1) {
+      if (Number.isFinite(startHint)) {
+        let best = hits[0];
+        let bestDist = Math.abs(best - startHint);
+        for (const h of hits) {
+          const d = Math.abs(h - startHint);
+          if (d < bestDist) { bestDist = d; best = h; }
+        }
+        return best;
+      }
+      return hits[0];
+    }
+
+    // 2) case-insensitive exact
+    const lowMd = md.toLowerCase();
+    const lowNeedle = text.toLowerCase();
+    const hits2 = findAllOccurrences(lowMd, lowNeedle);
+    if (hits2.length) {
+      if (Number.isFinite(startHint) && hits2.length > 1) {
+        let best = hits2[0];
+        let bestDist = Math.abs(best - startHint);
+        for (const h of hits2) {
+          const d = Math.abs(h - startHint);
+          if (d < bestDist) { bestDist = d; best = h; }
+        }
+        return best;
+      }
+      return hits2[0];
+    }
+
+    // 3) token order regex (whitespace/linebreak/마크다운 끼어도 어느 정도 대응)
+    const tokens = text.split(/\s+/).filter(Boolean).slice(0, 10);
+    if (tokens.length >= 2) {
+      const pattern = tokens.map(t => escapeRegExp(t)).join("[\\s\\S]{0,80}");
+      try {
+        const re = new RegExp(pattern, "i");
+        const m = re.exec(md);
+        if (m && typeof m.index === "number") return m.index;
+      } catch(e) {}
+    }
+
+    // 4) fallback: 앞부분 일부라도
+    const head = text.slice(0, Math.min(30, text.length));
+    const i3 = md.indexOf(head);
+    if (i3 >= 0) return i3;
+
+    return 0;
+  }
+
+  function scrollEditorToPos(textarea, pos) {
+    try {
+      const before = textarea.value.slice(0, pos);
+      const line = (before.match(/\n/g) || []).length + 1;
+      const cs = getComputedStyle(textarea);
+      const lh = parseFloat(cs.lineHeight) || 18;
+      const targetTop = Math.max(0, (line - 6) * lh);
+      textarea.scrollTop = targetTop;
+    } catch(e) {}
+  }
+
+  (function applyFocusFromQuery(){
+    try{
+      const params = new URLSearchParams(window.location.search);
+      const focus = params.get("focus");
+      if (focus !== "1") return;
+
+      const snippet = (params.get("snippet") || "").trim();
+      const startHintRaw = params.get("start");
+      const startHint = startHintRaw !== null ? parseInt(startHintRaw, 10) : NaN;
+
+      const md = editor.value || "";
+      const pos = findBestIndexInMarkdown(md, snippet, startHint);
+
+      log("focus request:", { snippet: snippet.slice(0, 80), startHint, pos });
+
+      editor.focus();
+      editor.setSelectionRange(pos, pos);
+      scrollEditorToPos(editor, pos);
+
+      // 커서 반영된 상태로 프리뷰도 갱신(마커 이동)
+      schedulePreviewUpdate();
+    }catch(e){
+      console.warn("applyFocusFromQuery failed", e);
+    }
+  })();
+
+  // =========================
+  // 이미지 클립보드 붙여넣기 → 업로드 + 마크다운 삽입
+  // =========================
+  editor.addEventListener('paste', function (e) {
+    const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (item.type && item.type.indexOf('image') !== -1) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('base_rel_dir', imageBaseDir);
+        formData.append('image', file);
+
+        fetch(uploadUrl, {
+          method: 'POST',
+          body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.ok && data.md_path) {
+            const md = `![pasted image](${data.md_path})\n`;
+            insertAtCursor(editor, md);
+            schedulePreviewUpdate();
+          } else {
+            alert('이미지 업로드에 실패했습니다.');
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          alert('이미지 업로드 중 오류가 발생했습니다.');
+        });
+
+        break;
+      }
+    }
+  });
+</script>
+
+{% endblock %}

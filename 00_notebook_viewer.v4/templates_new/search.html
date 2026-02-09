@@ -1,0 +1,250 @@
+﻿{% extends "base.html" %}
+
+{% block title %}검색 - Research Platform{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>🔍 문서 검색</h1>
+    <p class="page-description">전체 문서에서 키워드로 검색합니다</p>
+</div>
+
+<div class="search-container">
+    <div class="search-box-large">
+        <i class="ri-search-line"></i>
+        <input type="text" id="search-input" placeholder="검색어를 입력하세요..." autofocus>
+        <button id="search-btn" class="btn btn-primary">검색</button>
+    </div>
+    
+    <div class="search-filters">
+        <select id="filter-workspace">
+            <option value="">전체 워크스페이스</option>
+        </select>
+        <select id="filter-sort">
+            <option value="relevance">관련도순</option>
+            <option value="recent">최신순</option>
+            <option value="title">제목순</option>
+        </select>
+    </div>
+</div>
+
+<div id="search-results" class="search-results">
+    <p class="search-placeholder">검색어를 입력하면 결과가 표시됩니다</p>
+</div>
+
+<style>
+.search-container {
+    max-width: 800px;
+    margin: 0 auto 2rem;
+}
+
+.search-box-large {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg-secondary);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    padding: 12px 20px;
+    transition: border-color 0.2s;
+}
+
+.search-box-large:focus-within {
+    border-color: var(--accent-primary);
+}
+
+.search-box-large i {
+    font-size: 1.5rem;
+    color: var(--text-muted);
+}
+
+.search-box-large input {
+    flex: 1;
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    outline: none;
+}
+
+.search-box-large input::placeholder {
+    color: var(--text-muted);
+}
+
+.search-filters {
+    display: flex;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.search-filters select {
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.search-results {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.search-placeholder {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-muted);
+}
+
+.search-result-item {
+    display: block;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px 20px;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s;
+}
+
+.search-result-item:hover {
+    border-color: var(--accent-primary);
+    transform: translateY(-2px);
+}
+
+.search-result-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.search-result-meta {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    display: flex;
+    gap: 12px;
+}
+
+.search-result-excerpt {
+    margin-top: 8px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.no-results {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-muted);
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('search-input');
+    const searchBtn = document.getElementById('search-btn');
+    const resultsContainer = document.getElementById('search-results');
+    const filterWorkspace = document.getElementById('filter-workspace');
+    
+    // Load workspaces for filter
+    loadWorkspaceFilter();
+    
+    // Search on enter
+    searchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') performSearch();
+    });
+    
+    searchBtn.addEventListener('click', performSearch);
+    
+    // Check URL params for initial search
+    const urlParams = new URLSearchParams(window.location.search);
+    const q = urlParams.get('q');
+    if (q) {
+        searchInput.value = q;
+        performSearch();
+    }
+    
+    async function loadWorkspaceFilter() {
+        try {
+            const orgs = await api.get('/organizations');
+            for (const org of orgs) {
+                const workspaces = await api.get(`/organizations/${org.id}/workspaces`);
+                for (const ws of workspaces) {
+                    const option = document.createElement('option');
+                    option.value = ws.id;
+                    option.textContent = ws.name;
+                    filterWorkspace.appendChild(option);
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load workspaces:', e);
+        }
+    }
+    
+    async function performSearch() {
+        const query = searchInput.value.trim();
+        if (!query) {
+            resultsContainer.innerHTML = '<p class="search-placeholder">검색어를 입력하면 결과가 표시됩니다</p>';
+            return;
+        }
+        
+        resultsContainer.innerHTML = '<p class="search-placeholder">검색 중...</p>';
+        
+        try {
+            let url = `/documents?search=${encodeURIComponent(query)}&limit=50`;
+            const wsId = filterWorkspace.value;
+            if (wsId) url += `&workspace_id=${wsId}`;
+            
+            const data = await api.get(url);
+            const items = Array.isArray(data) ? data : (data.items || []);
+            
+            if (items.length === 0) {
+                resultsContainer.innerHTML = '<div class="no-results"><i class="ri-search-line" style="font-size:3rem;display:block;margin-bottom:1rem"></i>검색 결과가 없습니다</div>';
+                return;
+            }
+            
+            resultsContainer.innerHTML = items.map(doc => `
+                <a href="{{ root_path }}/documents/${doc.id}" class="search-result-item">
+                    <div class="search-result-title">${doc.icon || '📄'} ${escapeHtml(doc.title)}</div>
+                    <div class="search-result-meta">
+                        <span>${doc.workspace_name || '워크스페이스'}</span>
+                        <span>${formatDate(doc.updated_at)}</span>
+                    </div>
+                    ${doc.summary ? `<div class="search-result-excerpt">${escapeHtml(doc.summary)}</div>` : ''}
+                </a>
+            `).join('');
+            
+        } catch (error) {
+            console.error('Search error:', error);
+            resultsContainer.innerHTML = '<div class="no-results">검색 중 오류가 발생했습니다</div>';
+        }
+    }
+    
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    function formatDate(dateStr) {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diff = now - date;
+        if (diff < 60000) return '방금';
+        if (diff < 3600000) return `${Math.floor(diff / 60000)}분 전`;
+        if (diff < 86400000) return `${Math.floor(diff / 3600000)}시간 전`;
+        if (diff < 604800000) return `${Math.floor(diff / 86400000)}일 전`;
+        return date.toLocaleDateString('ko-KR');
+    }
+});
+</script>
+{% endblock %}
+

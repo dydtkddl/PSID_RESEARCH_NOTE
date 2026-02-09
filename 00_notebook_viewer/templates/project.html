@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="project-header"
+     style="--accent-color: {{ theme.accent }};">
+  <div>
+    <h2>프로젝트: {{ project_name }}</h2>
+    <p class="meta">경로: {{ project_rel_path }}</p>
+  </div>
+  <div class="project-header-actions">
+    <a class="btn-secondary" href="{{ url_for('index') }}">
+      ← 프로젝트 목록으로
+    </a>
+    <a class="btn" href="{{ url_for('new_file') }}?rel_path={{ project_rel_path }}">
+      ＋ 새 문서
+    </a>
+    <a class="btn-secondary" href="{{ url_for('settings_view') }}?rel_path={{ project_rel_path }}">
+      ⚙ 설정
+    </a>
+  </div>
+</div>
+
+<form method="get" action="{{ url_for('project_view') }}" class="note-filter-form">
+  <input type="hidden" name="rel_path" value="{{ project_rel_path }}">
+
+  <label>
+    정렬:
+    <select name="sort">
+      <option value="modified" {{ 'selected' if sort == 'modified' else '' }}>수정일</option>
+      <option value="created" {{ 'selected' if sort == 'created' else '' }}>생성일</option>
+      <option value="name"     {{ 'selected' if sort == 'name' else '' }}>파일명</option>
+    </select>
+  </label>
+
+  <label>
+    방향:
+    <select name="order">
+      <option value="desc" {{ 'selected' if order == 'desc' else '' }}>내림차순</option>
+      <option value="asc"  {{ 'selected' if order == 'asc' else '' }}>오름차순</option>
+    </select>
+  </label>
+
+  <label>
+    페이지당:
+    <select name="page_size">
+      <option value="10"  {{ 'selected' if page_size == 10  else '' }}>10</option>
+      <option value="20"  {{ 'selected' if page_size == 20  else '' }}>20</option>
+      <option value="50"  {{ 'selected' if page_size == 50  else '' }}>50</option>
+      <option value="100" {{ 'selected' if page_size == 100 else '' }}>100</option>
+    </select>
+  </label>
+
+  <label class="note-filter-search">
+    검색:
+    <input type="text" name="q" value="{{ q }}" placeholder="파일명 / 경로 검색">
+  </label>
+
+  <button type="submit" class="btn-secondary">적용</button>
+</form>
+
+{% if notes %}
+  <table class="note-table">
+    <thead>
+      <tr>
+        <th>제목</th>
+        <th>경로</th>
+        <th>생성일시</th>
+        <th>수정일시</th>
+        <th style="width: 120px;">액션</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for note in notes %}
+        <tr class="note-row">
+          <td class="note-title-cell">
+            {% if note.is_favorite %}
+              <span class="favorite-star on">★</span>
+            {% else %}
+              <span class="favorite-star">☆</span>
+            {% endif %}
+            <a href="{{ url_for('view_file') }}?rel_path={{ note.rel_path }}">
+              {{ note.name }}
+            </a>
+          </td>
+          <td class="note-path-cell">{{ note.rel_path }}</td>
+          <td class="note-date-cell">{{ note.created }}</td>
+          <td class="note-date-cell">{{ note.modified }}</td>
+          <td class="note-action-cell">
+            <a class="btn-secondary"
+               href="{{ url_for('edit_file') }}?rel_path={{ note.rel_path }}">
+              편집
+            </a>
+            <a class="btn-secondary"
+               href="{{ url_for('toggle_favorite') }}?rel_path={{ note.rel_path }}">
+              {% if note.is_favorite %}해제{% else %}즐겨찾기{% endif %}
+            </a>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if total_pages > 1 %}
+    <div class="pagination">
+      {% if page > 1 %}
+        <a class="page-link"
+           href="{{ url_for('project_view',
+                            rel_path=project_rel_path,
+                            sort=sort,
+                            order=order,
+                            page=page-1,
+                            page_size=page_size,
+                            q=q) }}">
+          ‹ 이전
+        </a>
+      {% endif %}
+
+      {% for p in range(1, total_pages + 1) %}
+        {% if p == page %}
+          <span class="page-link current">{{ p }}</span>
+        {% else %}
+          <a class="page-link"
+             href="{{ url_for('project_view',
+                              rel_path=project_rel_path,
+                              sort=sort,
+                              order=order,
+                              page=p,
+                              page_size=page_size,
+                              q=q) }}">
+            {{ p }}
+          </a>
+        {% endif %}
+      {% endfor %}
+
+      {% if page < total_pages %}
+        <a class="page-link"
+           href="{{ url_for('project_view',
+                            rel_path=project_rel_path,
+                            sort=sort,
+                            order=order,
+                            page=page+1,
+                            page_size=page_size,
+                            q=q) }}">
+          다음 ›
+        </a>
+      {% endif %}
+    </div>
+  {% endif %}
+{% else %}
+  <p>이 프로젝트에는 .md 파일이 없습니다.</p>
+{% endif %}
+
+<script>
+  // Ctrl+N → 새 문서, '/' → 검색창 포커스
+  (function () {
+    const newNoteUrl = "{{ url_for('new_file') }}?rel_path={{ project_rel_path }}";
+    const searchInput = document.querySelector('input[name="q"]');
+
+    document.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        window.location.href = newNoteUrl;
+      }
+      if (!e.target.matches('input, textarea') && e.key === '/') {
+        e.preventDefault();
+        if (searchInput) searchInput.focus();
+      }
+    });
+  })();
+</script>
+
+{% endblock %}

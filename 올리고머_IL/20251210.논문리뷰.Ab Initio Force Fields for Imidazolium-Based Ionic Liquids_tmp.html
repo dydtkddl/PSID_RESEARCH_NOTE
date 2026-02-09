@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>20251210.논문리뷰.Ab Initio Force Fields for Imidazolium-Based Ionic Liquids.md</title>
+    <meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+    
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+html,footer,header{
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Custom MD PDF CSS
+ */
+html,footer,header{
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+
+ }
+body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+<link rel="stylesheet" href="file:///r%3A/2.Travail/1.Enseignement/Cours/_1.Outils/2.Developpement/1.SCSS/main.css" type="text/css"><link rel="stylesheet" href="file:///d%3A/rdaros/Cours/_1.Outils/2.Developpement/1.SCSS/main.css" type="text/css">
+</head>
+
+<body>
+    <h1 id="ab-initio-force-fields-for-imidazolium-based-ionic-liquids-%E2%80%93-paper-note">Ab Initio Force Fields for Imidazolium-Based Ionic Liquids – Paper Note</h1>
+<pre class="hljs"><code><div>
+&gt; date: 2025-12-11                   
+&gt; paper_title: &quot;Ab Initio Force Fields for Imidazolium-Based Ionic Liquids&quot;  
+&gt; short_title: &quot;이미다졸리움계 IL SAPT기반 Ab initio Force Field 개발&quot;  
+&gt; authors: &quot;Jesse G. McDaniel,† Eunsong Choi,‡ Chang Yun Son,† J. R. Schmidt,† and Arun Yethiraj*,†&quot;  
+&gt; journal: &quot;The Journal of Physical Chemistry B&quot;  
+&gt; year: June 28, 2016  
+&gt; doi: &quot;doi/10.1021/acs.jpcb.6b05328&quot;  
+&gt; link: &quot;https://pubs.acs.org/doi/10.1021/acs.jpcb.6b05328#_i18&quot;  
+&gt; priority: &quot;⭐️⭐️⭐️⭐️☆&quot;
+&gt; key_topics: [&quot;ionic liquid&quot;, &quot;force field&quot;, &quot;MD&quot;]  
+&gt; key_methods: [&quot;DFT&quot;, &quot;SAPT&quot;, &quot;MD&quot;]  
+&gt; key_systems: [&quot;EMIM+&quot;, &quot;[BMIM+]&quot;, &quot;[C6MIM+]&quot;, &quot;[BF4-]&quot;, &quot;[PF6-]&quot;]  
+
+</div></code></pre>
+<h2 id="1-%ED%95%9C-%EC%A4%84-%EC%9A%94%EC%95%BD--%ED%82%A4-%EB%A9%94%EC%8B%9C%EC%A7%80">1. 한 줄 요약 / 키 메시지</h2>
+<p>(이 논문이 주장하는 핵심을 한두 문장으로 자유롭게 요약)</p>
+<p><img src="file:///c:/Users/PSID_PC_20/Desktop/연구노트/올리고머_IL/image.png" alt="alt text"></p>
+<hr>
+<h2 id="2-%EC%9E%90%EC%9C%A0-%EB%A9%94%EB%AA%A8">2. 자유 메모</h2>
+<pre class="hljs"><code><div>
+dsadasda
+
+</div></code></pre>
+<p>(중요하다고 느낀 것, 방법론, 수식, 그림 설명, 내 해석 등 자유롭게 쓰는 구역)</p>
+<p><img src="file:///c:/Users/PSID_PC_20/Desktop/연구노트/올리고머_IL/imgs/img_20251211_205613_2f869e.png" alt="img_20251211_205613_2f869e.png"></p>
+<ul>
+<li></li>
+<li></li>
+</ul>
+<hr>
+<h2 id="3-%EB%AC%B8%EB%8B%A8-%EC%9D%BD%EA%B8%B0">3. 문단 읽기</h2>
+<ul>
+<li>
+<p>Abstract</p>
+<ul>
+<li>알킬 이미다졸리움 계 이온성 액체의 밀도, 기화열, 디퓨전, 전도도에 대한 예측을 하기위한 ab initio Force Field를 개발함.</li>
+<li>때때로 일관되지않고, 부족한 실험적인 기화열과 diffusion coeff를 예측하는데 이러한 FF를 유용하게 활용 가능.</li>
+<li>이 FF를 통해 이미다졸리움 계 양이온의 알킬 사슬 길이에 따른 cohesive energy의 트렌드를 밝혀냈고, 실험적인 기화열과 다른 트렌드를 가진다는 사실 규명.</li>
+<li>상온에서의 IL의 동역학을 예측하는 것은 어려운 것으로 일반적으로 알려져있음. 왜냐면 통계적인 불확실성이 크며, Force field에 대한 세심한 고려가 필요하기 때문임.</li>
+</ul>
+</li>
+<li>
+<p>Introduction</p>
+<ul>
+<li>상온에서 IL 특성 규명 중요하다
+<ul>
+<li>IL은 일단 유기 양이온 음이온으로 이루어짐. 다양한 중요한 곳에서 용매나 electrolyte로 사용된다.</li>
+<li>다양한 양이온 음이온들이 조합될 수 있으며, 그 조합과 조성에 따라 그 특성을 조절할 수 있다.</li>
+<li>그래서 분자레벨에서 IL의 특성을 이해하는 것은 매우 중요하고, 더 나은 추가 응용 디자인을 가능하게 함.</li>
+<li>양자화학 계산과 MD를 진행함. 양자화학 계산은 이온 쌍에 대한 전자 구조분석을 위해, 그리고 MD는 벌크 액체에서의 특성 규명을 위해 실시함.</li>
+</ul>
+</li>
+<li>물리적으로 의미있고 정확한 Force Field가 반드시 필요
+<ul>
+<li>그래야 ion 분자들의 사이즈, 모양, 유연성, 전하 재분포, polarization, 전하 전이와 같은 구조적 특성으로 밀도, 구조, 응집에너지, 기화열, vapor pressure, 점도, 이온 확산, 전도도 등을 알아낼 수 있기 때문.</li>
+</ul>
+</li>
+<li>IL Force Field개발은 현재 진행형<br>
+- 그러나 아직 완전히 모든 IL에 정합성있는 단일 FF는 없음<br>
+- Nonpolarizable Force Field<br>
+- OPLS-AA<br>
+- AMBER<br>
+- Chaban and coworkers[21-23]<br>
+- Maginn and coworkers[4,24-29]
+<ul>
+<li>Explicitly polarizable atomistic forcefield
+<ul>
+<li>Borodin and coworkers[30,31]
+<ul>
+<li>실험적 기화 엔탈피와 동역학적 특성과 잘 맞는거 확인</li>
+</ul>
+</li>
+<li>Wang and coworkers[35-38]
+<ul>
+<li>멀티스케일 coarse graining apporach를 활용한 IL FF</li>
+</ul>
+</li>
+<li>Yan and coworkers[39-42]
+<ul>
+<li>polarizable models for EMIM+/NO3-</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>아주 많은 FF들이 실험값을 통해 parameter들이 정제되었다.</li>
+<li></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="3-%EB%82%B4-%EC%97%B0%EA%B5%AC%EB%9E%91-%EC%97%B0%EA%B2%B0%EB%90%98%EB%8A%94-%ED%8F%AC%EC%9D%B8%ED%8A%B8">3. 내 연구랑 연결되는 포인트</h2>
+<p>(내 프로젝트에 어떻게 쓸 수 있을지, 아이디어/적용 가능성 자유롭게 서술)</p>
+<ul>
+<li></li>
+</ul>
+<hr>
+<h2 id="4-%EB%82%98%EC%A4%91%EC%97%90-%EB%8B%A4%EC%8B%9C-%EB%B3%BC-%EB%95%8C-%EC%B2%B4%ED%81%AC%ED%95%A0-%EA%B2%83-todo--questions">4. 나중에 다시 볼 때 체크할 것 (TODO / Questions)</h2>
+<ul>
+<li>
+<p><input type="checkbox" id="checkbox0"><label for="checkbox0">다시 확인할 Figure / Table</label></p>
+</li>
+<li>
+<p><input type="checkbox" id="checkbox1"><label for="checkbox1">구현/재현해보고 싶은 방법</label></p>
+</li>
+<li>
+<p><input type="checkbox" id="checkbox2"><label for="checkbox2">아직 이해 안 되는 부분 / 질문</label></p>
+</li>
+</ul>
+
+</body>
+
+</html>

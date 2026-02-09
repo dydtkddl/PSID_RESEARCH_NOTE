@@ -1,0 +1,207 @@
+﻿<!doctype html>
+<html lang="ko" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Research Platform - Enterprise Research Note Management"
+    />
+    <title>{% block title %}Research Platform{% endblock %}</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Icons -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.2.0/remixicon.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Main CSS -->
+    <link rel="stylesheet" href="{{ root_path }}/static/css/main.css" />
+
+    {% block extra_head %}{% endblock %}
+  </head>
+  <body>
+    {% block body %}
+    <!-- App Shell -->
+    <div class="app-shell" id="app">
+      <!-- Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <a href="{{ root_path }}/" class="logo">
+            <div class="logo-icon">
+              <i class="ri-book-3-line"></i>
+            </div>
+            <span class="logo-text">Research Platform</span>
+          </a>
+          <button class="sidebar-toggle" id="sidebar-toggle">
+            <i class="ri-menu-fold-line"></i>
+          </button>
+        </div>
+
+        <nav class="sidebar-nav">
+          <div class="nav-section">
+            <a
+              href="{{ root_path }}/"
+              class="nav-item {% if request.url.path == '/' %}active{% endif %}"
+            >
+              <i class="ri-dashboard-line"></i>
+              <span>Dashboard</span>
+            </a>
+            <a
+              href="{{ root_path }}/search"
+              class="nav-item {% if '/search' in request.url.path %}active{% endif %}"
+            >
+              <i class="ri-search-line"></i>
+              <span>Search</span>
+            </a>
+          </div>
+
+          <div class="nav-section">
+            <div class="nav-section-title">
+              Workspaces
+              <button id="create-workspace-btn" class="btn-icon-sm" title="New Workspace">
+                <i class="ri-add-line"></i>
+              </button>
+            </div>
+            <div id="workspace-list" class="workspace-list">
+              <!-- Dynamically loaded -->
+            </div>
+          </div>
+
+          <div class="nav-section">
+            <div class="nav-section-title">Quick Access</div>
+            <a href="{{ root_path }}/favorites" class="nav-item {% if '/favorites' in request.url.path %}active{% endif %}">
+              <i class="ri-star-line"></i>
+              <span>Favorites</span>
+            </a>
+            <a href="{{ root_path }}/recent" class="nav-item {% if '/recent' in request.url.path %}active{% endif %}">
+              <i class="ri-time-line"></i>
+              <span>Recent</span>
+            </a>
+          </div>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="user-menu" id="user-menu">
+            <div class="user-avatar">
+              {% if user and user.avatar_url %}
+              <img src="{{ user.avatar_url }}" alt="{{ user.display_name }}" />
+              {% else %}
+              <i class="ri-user-line"></i>
+              {% endif %}
+            </div>
+            <div class="user-info">
+              <span class="user-name">{{ user.display_name if user else 'Guest' }}</span>
+              <span class="user-role">{{ user.role if user else '' }}</span>
+            </div>
+            <button class="user-menu-toggle">
+              <i class="ri-more-2-fill"></i>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <header class="top-bar">
+          <button class="mobile-menu-toggle" id="mobile-menu-toggle">
+            <i class="ri-menu-line"></i>
+          </button>
+
+          <div class="top-bar-actions">
+            <div class="search-box">
+              <i class="ri-search-line"></i>
+              <input
+                type="text"
+                placeholder="Search... (Ctrl+K)"
+                id="global-search"
+              />
+            </div>
+            <button class="icon-btn" id="theme-toggle" title="Theme">
+              <i class="ri-moon-line"></i>
+            </button>
+            <div class="notification-wrapper">
+              <button class="icon-btn" id="notifications-btn" title="Notifications">
+                <i class="ri-notification-3-line"></i>
+                <span class="notification-badge" id="notification-badge"></span>
+              </button>
+              <div class="notification-dropdown" id="notification-dropdown">
+                <div class="notification-header">
+                  <span>Notifications</span>
+                  <button id="mark-all-read" class="btn-link">Mark all read</button>
+                </div>
+                <div class="notification-list" id="notification-list">
+                  <div class="notification-empty">No notifications</div>
+                </div>
+                <a href="{{ root_path }}/inbox" class="notification-footer">View all</a>
+              </div>
+            </div>
+            <a href="{{ root_path }}/settings" class="icon-btn" title="Settings">
+              <i class="ri-settings-3-line"></i>
+            </a>
+          </div>
+        </header>
+
+        <!-- Page Content -->
+        <div class="page-content">{% block content %}{% endblock %}</div>
+      </main>
+    </div>
+
+    <!-- Command Palette -->
+    <div class="command-palette" id="command-palette">
+      <div class="command-palette-backdrop"></div>
+      <div class="command-palette-modal">
+        <div class="command-palette-input">
+          <i class="ri-search-line"></i>
+          <input
+            type="text"
+            placeholder="Type a command..."
+            id="command-input"
+          />
+        </div>
+        <div class="command-palette-results" id="command-results">
+          <!-- Dynamic results -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- User Menu Dropdown -->
+    <div class="dropdown-menu" id="user-dropdown" style="display: none">
+      <a href="{{ root_path }}/settings" class="dropdown-item">
+        <i class="ri-settings-3-line"></i>
+        <span>Settings</span>
+      </a>
+      {% if user and user.is_superuser %}
+      <a href="{{ root_path }}/admin" class="dropdown-item">
+        <i class="ri-admin-line"></i>
+        <span>Admin</span>
+      </a>
+      {% endif %}
+      <div class="dropdown-divider"></div>
+      <button class="dropdown-item" id="logout-btn">
+        <i class="ri-logout-box-line"></i>
+        <span>Logout</span>
+      </button>
+    </div>
+    {% endblock %}
+
+    <!-- Scripts -->
+<script>
+    window.ROOT_PATH = "{{ root_path }}";
+</script>
+<script src="{{ root_path }}/static/js/app.js"></script>
+    {% block extra_scripts %}{% endblock %}
+  </body>
+</html>
+

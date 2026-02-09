@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>서버 로그 (최근 {{ lines }}줄)</h2>
+
+<p class="meta">
+  개발용 내부 페이지입니다. 로컬에서만 보는 것을 권장합니다.
+</p>
+
+<pre class="log-view">
+{{ log_text }}
+</pre>
+
+{% endblock %}

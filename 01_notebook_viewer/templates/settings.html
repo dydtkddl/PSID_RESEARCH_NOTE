@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>프로젝트 테마 설정</h2>
+<p class="meta">
+  프로젝트: {{ project_name }}<br>
+  경로: {{ project_rel_path }}
+</p>
+
+<form method="post" action="/research/settings" class="settings-form">
+  <input type="hidden" name="rel_path" value="{{ project_rel_path }}">
+
+  <div class="settings-row">
+    <label for="card_bg">카드 배경색</label>
+    <input type="color" id="card_bg" name="card_bg" value="{{ theme.card_bg }}">
+  </div>
+
+  <div class="settings-row">
+    <label for="card_border">카드 테두리색</label>
+    <input type="color" id="card_border" name="card_border" value="{{ theme.card_border }}">
+  </div>
+
+  <div class="settings-row">
+    <label for="accent">포커스 / 버튼 색 (accent)</label>
+    <input type="color" id="accent" name="accent" value="{{ theme.accent }}">
+  </div>
+
+  <div class="settings-row">
+    <label for="header_bg">헤더 배경색</label>
+    <input type="color" id="header_bg" name="header_bg" value="{{ theme.header_bg }}">
+  </div>
+
+  <div class="settings-actions">
+    <button type="submit" class="btn">저장</button>
+    <a href="{{ url_for('project_view') }}?rel_path={{ project_rel_path }}" class="btn-secondary">
+      취소
+    </a>
+  </div>
+</form>
+
+{% endblock %}

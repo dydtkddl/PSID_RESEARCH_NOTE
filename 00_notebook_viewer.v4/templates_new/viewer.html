@@ -1,0 +1,300 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ document.title }} - Research Platform{% endblock %}
+
+{% block extra_head %}
+<!-- MathJax for LaTeX rendering -->
+<script>
+MathJax = {
+    tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+    },
+    svg: {
+        fontCache: 'global'
+    }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+<link rel="stylesheet" href="{{ root_path }}/static/css/viewer.css">
+{% endblock %}
+
+{% block breadcrumb %}
+<a href="{{ root_path }}/">홈</a>
+<i class="ri-arrow-right-s-line"></i>
+<a href="{{ root_path }}/workspaces/{{ document.workspace_id }}">워크스페이스</a>
+<i class="ri-arrow-right-s-line"></i>
+<span>{{ document.title }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="viewer-container">
+    <!-- Document Header -->
+    <header class="document-header">
+        <div class="document-meta">
+            <div class="document-icon">{{ document.icon }}</div>
+            <div class="document-info">
+                <h1 class="document-title" id="document-title">{{ document.title }}</h1>
+                <div class="document-details">
+                    <span class="detail-item">
+                        <i class="ri-user-line"></i>
+                        <span id="owner-name">작성자</span>
+                    </span>
+                    <span class="detail-item">
+                        <i class="ri-time-line"></i>
+                        <span id="updated-at">{{ document.updated_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                    </span>
+                    <span class="detail-item">
+                        <i class="ri-eye-line"></i>
+                        <span>{{ document.view_count }} 조회</span>
+                    </span>
+                    <span class="detail-item version-badge">
+                        v{{ document.current_version }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="document-actions">
+            <button class="btn btn-icon {% if is_favorited %}active{% endif %}" id="favorite-btn" 
+                    title="즐겨찾기" data-favorited="{{ 'true' if is_favorited else 'false' }}">
+                <i class="{% if is_favorited %}ri-star-fill{% else %}ri-star-line{% endif %}"></i>
+            </button>
+            {% if can_edit %}
+            <a href="{{ root_path }}/documents/{{ document.id }}/edit" class="btn btn-primary">
+                <i class="ri-edit-line"></i>
+                <span>편집</span>
+            </a>
+            {% endif %}
+            <div class="dropdown">
+                <button class="btn btn-icon dropdown-trigger" id="more-actions-btn">
+                    <i class="ri-more-2-fill"></i>
+                </button>
+                <div class="dropdown-menu" id="more-actions-menu">
+                    <button class="dropdown-item" id="export-pdf-btn">
+                        <i class="ri-file-pdf-line"></i>
+                        <span>PDF로 내보내기</span>
+                    </button>
+                    <button class="dropdown-item" id="export-md-btn">
+                        <i class="ri-markdown-line"></i>
+                        <span>마크다운 다운로드</span>
+                    </button>
+                    <button class="dropdown-item" id="copy-link-btn">
+                        <i class="ri-link"></i>
+                        <span>링크 복사</span>
+                    </button>
+                    <div class="dropdown-divider"></div>
+                    <button class="dropdown-item" id="history-btn">
+                        <i class="ri-history-line"></i>
+                        <span>버전 기록</span>
+                    </button>
+                    <button class="dropdown-item" id="print-btn">
+                        <i class="ri-printer-line"></i>
+                        <span>인쇄</span>
+                    </button>
+                    {% if can_edit %}
+                    <div class="dropdown-divider"></div>
+                    <button class="dropdown-item text-error" id="delete-doc-btn">
+                        <i class="ri-delete-bin-line"></i>
+                        <span>삭제</span>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Toolbar -->
+    <div class="viewer-toolbar">
+        <div class="toolbar-left">
+            <div class="toc-toggle">
+                <button class="btn btn-ghost btn-sm" id="toc-toggle-btn">
+                    <i class="ri-list-unordered"></i>
+                    <span>목차</span>
+                </button>
+            </div>
+        </div>
+        <div class="toolbar-center">
+            <!-- Font size -->
+            <div class="font-size-control">
+                <button class="btn btn-icon btn-sm" id="font-decrease">
+                    <i class="ri-subtract-line"></i>
+                </button>
+                <span class="font-size-value" id="font-size-value">100%</span>
+                <button class="btn btn-icon btn-sm" id="font-increase">
+                    <i class="ri-add-line"></i>
+                </button>
+            </div>
+        </div>
+        <div class="toolbar-right">
+            <div class="highlight-colors">
+                <button class="highlight-color active" data-color="#fff59d" style="background: #fff59d;" title="노란색"></button>
+                <button class="highlight-color" data-color="#a5d6a7" style="background: #a5d6a7;" title="초록색"></button>
+                <button class="highlight-color" data-color="#90caf9" style="background: #90caf9;" title="파란색"></button>
+                <button class="highlight-color" data-color="#f48fb1" style="background: #f48fb1;" title="분홍색"></button>
+                <button class="highlight-color" data-color="#ffcc80" style="background: #ffcc80;" title="주황색"></button>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="comments-toggle">
+                <i class="ri-chat-3-line"></i>
+                <span>댓글</span>
+                <span class="badge" id="comments-count">0</span>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Main Content Area -->
+    <div class="viewer-main">
+        <!-- Table of Contents Sidebar -->
+        <aside class="toc-sidebar" id="toc-sidebar">
+            <div class="toc-header">
+                <h3>목차</h3>
+                <button class="btn btn-icon btn-sm" id="toc-close">
+                    <i class="ri-close-line"></i>
+                </button>
+            </div>
+            <nav class="toc-content" id="toc-content">
+                <!-- Generated from headings -->
+            </nav>
+        </aside>
+        
+        <!-- Document Content -->
+        <article class="document-content markdown-body" id="document-content">
+            {% if document.doc_metadata and document.doc_metadata.paper_title %}
+            <!-- Paper Metadata Card -->
+            <header class="paper-header-card">
+                <h1 class="paper-title">{{ document.doc_metadata.short_title or document.doc_metadata.paper_title }}</h1>
+                {% if document.doc_metadata.short_title and document.doc_metadata.paper_title != document.doc_metadata.short_title %}
+                <p class="paper-original-title">{{ document.doc_metadata.paper_title }}</p>
+                {% endif %}
+                <div class="paper-meta-grid">
+                    {% if document.doc_metadata.authors %}
+                    <div class="meta-item">
+                        <i class="ri-user-line"></i>
+                        <span>{{ document.doc_metadata.authors }}</span>
+                    </div>
+                    {% endif %}
+                    {% if document.doc_metadata.journal %}
+                    <div class="meta-item">
+                        <i class="ri-book-line"></i>
+                        <span>{{ document.doc_metadata.journal }}{% if document.doc_metadata.year %} ({{ document.doc_metadata.year }}){% endif %}</span>
+                    </div>
+                    {% endif %}
+                    {% if document.doc_metadata.date %}
+                    <div class="meta-item">
+                        <i class="ri-calendar-line"></i>
+                        <span>{{ document.doc_metadata.date }}</span>
+                    </div>
+                    {% endif %}
+                    {% if document.doc_metadata.category %}
+                    <div class="meta-item">
+                        <i class="ri-folder-line"></i>
+                        <span>{{ document.doc_metadata.category }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if document.doc_metadata.tags %}
+                <div class="paper-tags">
+                    {% for tag in document.doc_metadata.tags %}
+                    <span class="paper-tag">#{{ tag }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if document.doc_metadata.summary %}
+                <div class="summary-box">
+                    <div class="summary-title">
+                        <i class="ri-lightbulb-line"></i>
+                        <span>핵심 요약</span>
+                    </div>
+                    <p>{{ document.doc_metadata.summary }}</p>
+                </div>
+                {% endif %}
+            </header>
+            {% endif %}
+            
+            {{ document.content_html | safe }}
+        </article>
+        
+        <!-- Comments Sidebar -->
+        <aside class="comments-sidebar" id="comments-sidebar">
+            <div class="comments-header">
+                <h3>댓글</h3>
+                <button class="btn btn-icon btn-sm" id="comments-close">
+                    <i class="ri-close-line"></i>
+                </button>
+            </div>
+            <div class="comments-list" id="comments-list">
+                <!-- Dynamic comments -->
+            </div>
+            <div class="comment-form">
+                <textarea id="new-comment" placeholder="댓글을 입력하세요..." rows="3"></textarea>
+                <button class="btn btn-primary btn-sm" id="submit-comment">
+                    <i class="ri-send-plane-line"></i>
+                    <span>작성</span>
+                </button>
+            </div>
+        </aside>
+    </div>
+</div>
+
+<!-- Highlight Popup -->
+<div class="highlight-popup" id="highlight-popup" style="display: none;">
+    <button class="popup-btn" id="add-highlight">
+        <i class="ri-mark-pen-line"></i>
+    </button>
+    <button class="popup-btn" id="add-comment">
+        <i class="ri-chat-1-line"></i>
+    </button>
+    <button class="popup-btn" id="copy-text">
+        <i class="ri-file-copy-line"></i>
+    </button>
+</div>
+
+<!-- Version History Modal -->
+<div class="modal" id="history-modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-lg">
+        <div class="modal-header">
+            <h3>버전 기록</h3>
+            <button class="modal-close" id="close-history-modal">
+                <i class="ri-close-line"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="version-list" id="version-list">
+                <!-- Dynamic versions -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal" id="delete-doc-modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3>문서 삭제</h3>
+            <button class="modal-close" id="close-delete-doc">
+                <i class="ri-close-line"></i>
+            </button>
+        </div>
+        <div class="modal-body" style="text-align: center; padding: 24px;">
+            <i class="ri-error-warning-line" style="font-size: 3rem; color: var(--accent-error);"></i>
+            <p style="margin-top: 16px;">이 문서를 삭제하시겠습니까?<br>이 작업은 되돌릴 수 없습니다.</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="cancel-delete-doc">취소</button>
+            <button class="btn" id="confirm-delete-doc" style="background: var(--accent-error); color: white;">삭제</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const DOCUMENT_ID = "{{ document.id }}";
+const CAN_EDIT = {{ 'true' if can_edit else 'false' }};
+</script>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ root_path }}/static/js/viewer.js"></script>
+{% endblock %}
+

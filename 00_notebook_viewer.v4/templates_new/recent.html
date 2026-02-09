@@ -1,0 +1,160 @@
+﻿{% extends "base.html" %}
+
+{% block title %}최근 문서 - Research Platform{% endblock %}
+
+{% block breadcrumb %}
+<a href="{{ root_path }}/">홈</a>
+<i class="ri-arrow-right-s-line"></i>
+<span>최근 문서</span>
+{% endblock %}
+
+{% block content %}
+<div class="recent-page">
+    <header class="page-header">
+        <div class="header-info">
+            <h1><i class="ri-time-line" style="color: var(--accent-info);"></i> 최근 문서</h1>
+            <p>최근에 열어본 문서들입니다</p>
+        </div>
+    </header>
+    
+    <div class="documents-container">
+        <div class="documents-list" id="recent-list">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <p>최근 문서를 불러오는 중...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.recent-page {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.page-header {
+    margin-bottom: 32px;
+}
+
+.page-header h1 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.page-header p {
+    color: var(--text-secondary);
+}
+
+.documents-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.document-row {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s;
+}
+
+.document-row:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+}
+
+.doc-icon {
+    font-size: 1.5rem;
+    margin-right: 16px;
+}
+
+.doc-info {
+    flex: 1;
+}
+
+.doc-title {
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.doc-meta {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+.doc-time {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 64px 32px;
+    color: var(--text-tertiary);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 16px;
+}
+
+.loading-state {
+    text-align: center;
+    padding: 64px;
+}
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', loadRecent);
+
+async function loadRecent() {
+    const container = document.getElementById('recent-list');
+    
+    try {
+        const documents = await api.get('/users/me/recent?limit=50');
+        
+        if (!documents || documents.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="ri-time-line"></i>
+                    <p>최근 열어본 문서가 없습니다</p>
+                    <a href="{{ root_path }}/" class="btn btn-primary" style="margin-top: 16px;">대시보드로 이동</a>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = documents.map(doc => `
+            <a href="{{ root_path }}/documents/${doc.id}" class="document-row">
+                <span class="doc-icon">${doc.icon || '📄'}</span>
+                <div class="doc-info">
+                    <div class="doc-title">${escapeHtml(doc.title)}</div>
+                    <div class="doc-meta">
+                        ${doc.workspace_name ? doc.workspace_name : ''}
+                    </div>
+                </div>
+                <span class="doc-time">${formatDate(doc.viewed_at || doc.updated_at)}</span>
+            </a>
+        `).join('');
+    } catch (error) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="ri-error-warning-line"></i>
+                <p>최근 문서를 불러올 수 없습니다</p>
+            </div>
+        `;
+    }
+}
+</script>
+{% endblock %}
+

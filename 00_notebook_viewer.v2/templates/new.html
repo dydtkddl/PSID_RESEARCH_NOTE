@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+  {% if project_rel_path %}
+    <base href="{{ url_for('serve_media', rel_path=project_rel_path) }}/">
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<div class="project-header"
+     style="--accent-color: {{ theme.accent }}; flex-wrap: wrap; gap: 8px;">
+  <div>
+    <h2>새 문서 생성 ({{ project_name }})</h2>
+    <p class="meta">프로젝트 경로: {{ project_rel_path }}</p>
+  </div>
+  <div class="project-header-actions"
+       style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end;">
+    <a class="btn-secondary"
+       href="{{ url_for('project_view') }}?rel_path={{ project_rel_path }}">
+      ← 프로젝트 목록으로
+    </a>
+  </div>
+</div>
+
+<form method="post"
+      action="{{ url_for('new_file') }}"
+      class="editor-form">
+  <input type="hidden" name="project_rel_path" value="{{ project_rel_path }}">
+
+  <div class="settings-row" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px;">
+    <label for="title" style="min-width: 80px;">파일 제목</label>
+    <input id="title"
+           type="text"
+           name="title"
+           placeholder="예: 20251211.논문리뷰.Ab Initio Force Fields..."
+           style="flex: 1 1 200px; padding: 4px 8px;">
+  </div>
+
+  <div class="settings-row" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px;">
+    <label for="template_name" style="min-width: 80px;">템플릿</label>
+    <select id="template_name" name="template_name">
+      <option value="">(빈 문서)</option>
+      {% for t in available_templates %}
+        <option value="{{ t }}">{{ t }}</option>
+      {% endfor %}
+    </select>
+    <span class="meta">note_templates 폴더의 .md 파일</span>
+  </div>
+
+  <div class="editor-wrapper editor-split">
+    <!-- 왼쪽: 에디터 -->
+    <div class="editor-pane">
+      <label for="new-editor" class="meta">Markdown 내용</label>
+      <textarea id="new-editor"
+                name="content"
+                class="editor-textarea"
+                spellcheck="false"></textarea>
+      <p class="meta">
+        ● 텍스트 영역에서 Ctrl+V로 이미지 붙여넣기 →  
+        <code>{{ project_rel_path }}/_images</code> 폴더에 저장 +  
+        <code>![...](...)</code> 자동 삽입
+      </p>
+    </div>
+
+    <!-- 오른쪽: 미리보기 -->
+    <div class="preview-pane">
+      <div class="preview-header">라이브 미리보기</div>
+      <div id="new-preview" class="preview-body markdown-body"></div>
+    </div>
+  </div>
+
+  <div class="editor-actions">
+    <button type="submit" class="btn">생성</button>
+    <button type="button" class="btn-secondary" onclick="window.history.back()">취소</button>
+  </div>
+</form>
+
+<script>
+  const newEditor = document.getElementById('new-editor');
+  const imageBaseDirNew = "{{ project_rel_path }}";
+  const uploadUrlNew = "{{ url_for('upload_image') }}";
+  const previewUrlNew = "{{ url_for('render_preview') }}";
+  const newPreview = document.getElementById('new-preview');
+
+  function insertAtCursorNew(textarea, text) {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const value = textarea.value;
+    textarea.value = value.substring(0, start) + text + value.substring(end);
+    const pos = start + text.length;
+    textarea.selectionStart = textarea.selectionEnd = pos;
+    textarea.focus();
+  }
+  function schedulePreviewUpdateNew() {
+    if (!newPreview || !newEditor) return;
+
+    if (window.__newPreviewTimer) {
+      clearTimeout(window.__newPreviewTimer);
+    }
+    window.__newPreviewTimer = setTimeout(() => {
+      const formData = new FormData();
+
+      const value = newEditor.value;
+      const caretPos = newEditor.selectionStart || 0;
+      const marker = "\n\n<div id=\"__cursor_marker__\"></div>\n\n";
+      const withMarker = value.slice(0, caretPos) + marker + value.slice(caretPos);
+
+      formData.append('content', withMarker);
+
+      const prevScrollTop = newPreview.scrollTop;
+      const prevMax = Math.max(1, newPreview.scrollHeight - newPreview.clientHeight);
+      const prevRatio = prevScrollTop / prevMax;
+
+      fetch(previewUrlNew, { method: 'POST', body: formData })
+      .then(res => res.text())
+      .then(html => {
+        newPreview.innerHTML = html;
+
+        // ✅ MathJax 재렌더
+        if (window.MathJax && MathJax.typesetPromise) {
+          MathJax.typesetPromise([newPreview]).catch(err => console.error('MathJax typeset error', err));
+        }
+
+        const markerEl = newPreview.querySelector('#__cursor_marker__');
+        if (markerEl) {
+          markerEl.scrollIntoView({ block: 'center' });
+        } else {
+          const max = Math.max(1, newPreview.scrollHeight - newPreview.clientHeight);
+          newPreview.scrollTop = max * prevRatio;
+        }
+      })
+      .catch(err => console.error('preview error', err));
+    }, 200);
+  }
+  newEditor.addEventListener('input', schedulePreviewUpdateNew);
+  newEditor.addEventListener('click', schedulePreviewUpdateNew);
+  newEditor.addEventListener('keyup', schedulePreviewUpdateNew);
+  window.addEventListener('load', schedulePreviewUpdateNew);
+
+  // 이미지 붙여넣기
+  newEditor.addEventListener('paste', function (e) {
+    const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (item.type && item.type.indexOf('image') !== -1) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('base_rel_dir', imageBaseDirNew);
+        formData.append('image', file);
+
+        fetch(uploadUrlNew, {
+          method: 'POST',
+          body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.ok && data.md_path) {
+            const md = `![pasted image](${data.md_path})\n`;
+            insertAtCursorNew(newEditor, md);
+            schedulePreviewUpdateNew();
+          } else {
+            alert('이미지 업로드에 실패했습니다.');
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          alert('이미지 업로드 중 오류가 발생했습니다.');
+        });
+
+        break;
+      }
+    }
+  });
+</script>
+
+{% endblock %}

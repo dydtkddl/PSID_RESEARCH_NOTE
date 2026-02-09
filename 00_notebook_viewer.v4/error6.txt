@@ -1,0 +1,32 @@
+﻿python : INFO:     Started se
+rver process [23420]
+위치 줄:1 문자:1
++ python -m uvicorn app.main:
+app --port 8000 2>&1 | Out-Fi
+le -FilePath  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo           
+   : NotSpecified: (INFO:    
+     Started server proces   
+ s [23420]:String) [], Re    
+moteException
+    + FullyQualifiedErrorId  
+   : NativeCommandError
+ 
+INFO:     Waiting for applica
+tion startup.
+INFO:     Application startup
+ complete.
+ERROR:    [Errno 10048] error
+ while attempting to bind on 
+address ('127.0.0.1', 8000): 
+[winerror 10048] 각 소켓 주소(프로토콜
+/네트워크 주소/포트)는 하나만 사용할 수 있습니다
+INFO:     Waiting for applica
+tion shutdown.
+INFO:     Application shutdow
+n complete.
+[*] Research Platform v2.0.0 starting...
+[*] Data directory: C:\Users\user\Desktop\Reseach_Note\00_notebook_viewer.v4\data
+[*] Research Platform shutting down...

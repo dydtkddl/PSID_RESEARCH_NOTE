@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <!-- ✅ 모바일 대응을 위한 viewport -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>{{ title if title else "연구노트 뷰어" }}</title>
+
+  <!-- ✅ FastAPI StaticFiles: /research/static/style.css -->
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+
+  <style>
+    /* =========================
+       ✅ 전역 폰트 설정
+       - 1순위: Microsoft NeoGothic
+       - 없으면 fallback으로 내려감
+       ========================= */
+    :root{
+      --app-font: "Microsoft NeoGothic", "Microsoft Neogothic",
+                  "Malgun Gothic", "맑은 고딕",
+                  "Apple SD Gothic Neo",
+                  "Noto Sans KR",
+                  "Segoe UI",
+                  Arial, sans-serif;
+    }
+
+    html, body{
+      font-family: var(--app-font);
+      font-size: 16px;
+      line-height: 1.5;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+      html, body,
+  .header, .main, .main-inner,
+  .viewer-layout, .viewer-main, .viewer-sidebar,
+  .markdown-body,
+  .project-card, .detail-header,
+  button, input, textarea, select {
+    font-family: var(--app-font) !important;
+  }
+
+  /* 코드블록은 가독성 위해 monospace 유지(원하면 삭제 가능) */
+  pre, code, kbd, samp {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+    /* ✅ form 요소/버튼도 폰트 상속 보장 */
+    input, button, textarea, select{
+      font: inherit;
+    }
+
+    /* 최소 다크모드 override */
+    body.dark {
+      background: #111;
+      color: #eee;
+    }
+    body.dark a {
+      color: #9cd;
+    }
+    body.dark .header {
+      background: #000;
+    }
+    body.dark .project-card {
+      background: #222;
+      border-color: #444;
+    }
+
+    .header-nav {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      font-size: 0.9rem;
+      flex-wrap: wrap; /* 모바일에서 자동 줄바꿈 */
+    }
+    .header-nav a {
+      text-decoration: none;
+    }
+    #theme-toggle {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 1.1rem;
+    }
+    .header-user {
+      font-size: 0.8rem;
+      opacity: 0.8;
+    }
+
+    /* 프리뷰 커서 위치 마커 (눈에는 안 보이게) */
+    #__cursor_marker__ {
+      display: block;
+      height: 0;
+      margin: 0;
+      padding: 0;
+      border: 0;
+    }
+
+    /* 헤더 레이아웃: 모바일에서 세로 정렬 */
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 12px;
+      box-sizing: border-box;
+    }
+
+    .logo a {
+      text-decoration: none;
+      color: inherit;
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    @media (max-width: 768px) {
+      .header-inner {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .header-nav {
+        width: 100%;
+        justify-content: flex-start;
+      }
+    }
+  </style>
+
+  {% block extra_head %}{% endblock %}
+</head>
+
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<body>
+  <!-- <div style="position:fixed;top:8px;right:8px;z-index:99999;background:#ff1744;color:#fff;padding:6px 10px;border-radius:8px;font-weight:800;">
+  viewer v-TEST
+</div> -->
+  <header class="header">
+    <div class="header-inner">
+      <h1 class="logo">
+        <a href="{{ url_for('index') }}">연구노트 뷰어</a>
+      </h1>
+
+      <nav class="header-nav">
+        <a href="{{ url_for('global_search') }}">🔍 전역 검색</a>
+        <a href="{{ url_for('tasks_view') }}">✅ 할 일</a>
+        <a href="{{ url_for('debug_log') }}">📜 로그</a>
+
+        {# ✅ 세션 미들웨어가 없거나 session 키가 없을 때도 안전하게 처리 #}
+        {% if 'session' in request.scope and request.scope['session'].get('user') %}
+          <span class="header-user">
+            로그인: {{ request.scope['session'].get('user') }}
+          </span>
+          <a href="{{ url_for('logout') }}" class="top-nav-link">🚪 로그아웃</a>
+        {% else %}
+          <a href="{{ url_for('login_page') }}" class="top-nav-link">로그인</a>
+        {% endif %}
+
+        <button id="theme-toggle" title="라이트/다크 전환">🌙</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main">
+    <!-- ✅ 모바일/PC 공통 레이아웃 컨테이너 -->
+    <div class="main-inner">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <script>
+    // 다크 모드 토글
+    (function() {
+      const body = document.body;
+      const btn = document.getElementById('theme-toggle');
+      const saved = localStorage.getItem('nv_theme') || 'light';
+      if (saved === 'dark') {
+        body.classList.add('dark');
+        if (btn) btn.textContent = '☀️';
+      }
+      if (btn) {
+        btn.addEventListener('click', function() {
+          const isDark = body.classList.toggle('dark');
+          localStorage.setItem('nv_theme', isDark ? 'dark' : 'light');
+          btn.textContent = isDark ? '☀️' : '🌙';
+        });
+      }
+    })();
+
+    // 에디터 페이지 단축키: Ctrl+S → 저장
+    (function() {
+      document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && (e.key === 's' || e.key === 'S')) {
+          const form = document.querySelector('form.editor-form');
+          if (form) {
+            e.preventDefault();
+            form.submit();
+          }
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

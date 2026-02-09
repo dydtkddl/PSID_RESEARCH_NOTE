@@ -1,0 +1,157 @@
+﻿<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>회원가입 - Research Platform</title>
+    <link rel="stylesheet" href="{{ root_path }}/static/css/main.css">
+    <link rel="stylesheet" href="{{ root_path }}/static/css/login.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.0.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body class="login-page">
+    <div class="login-container">
+        <!-- Left: Hero Section -->
+        <div class="login-hero">
+            <div class="hero-content">
+                <div class="hero-logo">
+                    <i class="ri-book-3-line"></i>
+                </div>
+                <h1>Research Platform</h1>
+                <p>연구와 아이디어를 체계적으로 관리하세요</p>
+                
+                <div class="hero-features">
+                    <div class="feature">
+                        <i class="ri-markdown-line"></i>
+                        <span>Markdown 에디터</span>
+                    </div>
+                    <div class="feature">
+                        <i class="ri-team-line"></i>
+                        <span>팀 협업</span>
+                    </div>
+                    <div class="feature">
+                        <i class="ri-file-pdf-line"></i>
+                        <span>PDF 내보내기</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right: Register Form -->
+        <div class="login-form-section">
+            <div class="form-wrapper">
+                <div class="form-header">
+                    <h2>회원가입</h2>
+                    <p>새 계정을 만들어 시작하세요</p>
+                </div>
+                
+                <form id="register-form" class="login-form">
+                    <div class="form-group">
+                        <label for="email">이메일</label>
+                        <div class="input-with-icon">
+                            <i class="ri-mail-line"></i>
+                            <input type="email" id="email" name="email" placeholder="name@example.com" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="username">사용자 이름</label>
+                        <div class="input-with-icon">
+                            <i class="ri-user-line"></i>
+                            <input type="text" id="username" name="username" placeholder="username" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="display_name">표시 이름</label>
+                        <div class="input-with-icon">
+                            <i class="ri-account-circle-line"></i>
+                            <input type="text" id="display_name" name="display_name" placeholder="홍길동">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">비밀번호</label>
+                        <div class="input-with-icon">
+                            <i class="ri-lock-line"></i>
+                            <input type="password" id="password" name="password" placeholder="8자 이상 입력" required minlength="8">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password_confirm">비밀번호 확인</label>
+                        <div class="input-with-icon">
+                            <i class="ri-lock-line"></i>
+                            <input type="password" id="password_confirm" name="password_confirm" placeholder="비밀번호 재입력" required>
+                        </div>
+                    </div>
+                    
+                    <div id="error-message" class="error-message" style="display: none;"></div>
+                    
+                    <button type="submit" class="btn btn-primary btn-lg btn-full">
+                        <i class="ri-user-add-line"></i>
+                        <span>가입하기</span>
+                    </button>
+                </form>
+                
+                <div class="form-footer">
+                    <p>이미 계정이 있으신가요? <a href="{{ root_path }}/login">로그인</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const username = document.getElementById('username').value;
+            const display_name = document.getElementById('display_name').value;
+            const password = document.getElementById('password').value;
+            const password_confirm = document.getElementById('password_confirm').value;
+            const errorEl = document.getElementById('error-message');
+            
+            // Validate passwords match
+            if (password !== password_confirm) {
+                errorEl.textContent = '비밀번호가 일치하지 않습니다';
+                errorEl.style.display = 'block';
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/v1/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, username, display_name, password })
+                });
+                
+                if (response.ok) {
+                    // Auto login after registration
+                    const loginResponse = await fetch('/api/v1/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({ username: email, password })
+                    });
+                    
+                    if (loginResponse.ok) {
+                        const data = await loginResponse.json();
+                        localStorage.setItem('access_token', data.access_token);
+                        localStorage.setItem('refresh_token', data.refresh_token);
+                        window.location.href = '/';
+                    } else {
+                        window.location.href = '/login';
+                    }
+                } else {
+                    const error = await response.json();
+                    errorEl.textContent = error.detail || '가입에 실패했습니다';
+                    errorEl.style.display = 'block';
+                }
+            } catch (err) {
+                errorEl.textContent = '서버 오류가 발생했습니다';
+                errorEl.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
+

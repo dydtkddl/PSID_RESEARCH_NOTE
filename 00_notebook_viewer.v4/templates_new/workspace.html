@@ -1,0 +1,267 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ workspace.name }} - Research Platform{% endblock %}
+
+{% block breadcrumb %}
+<a href="{{ root_path }}/">홈</a>
+<i class="ri-arrow-right-s-line"></i>
+<span>{{ workspace.name }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="workspace-page">
+    <!-- Workspace Header -->
+    <header class="workspace-header">
+        <div class="workspace-info">
+            <div class="workspace-icon">{{ workspace.icon }}</div>
+            <div>
+                <h1>{{ workspace.name }}</h1>
+                {% if workspace.description %}
+                <p class="workspace-description">{{ workspace.description }}</p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="workspace-actions">
+            <button class="btn btn-primary" id="new-doc-btn">
+                <i class="ri-add-line"></i>
+                <span>새 문서</span>
+            </button>
+            <button class="btn btn-ghost" id="workspace-settings-btn">
+                <i class="ri-settings-3-line"></i>
+            </button>
+        </div>
+    </header>
+    
+    <!-- Toolbar -->
+    <div class="workspace-toolbar">
+        <div class="toolbar-left">
+            <div class="view-toggle">
+                <button class="view-btn active" data-view="grid" title="그리드 보기">
+                    <i class="ri-grid-fill"></i>
+                </button>
+                <button class="view-btn" data-view="list" title="리스트 보기">
+                    <i class="ri-list-check"></i>
+                </button>
+            </div>
+            <div class="filter-dropdown">
+                <button class="btn btn-ghost btn-sm dropdown-trigger">
+                    <i class="ri-filter-3-line"></i>
+                    <span>필터</span>
+                </button>
+                <div class="dropdown-menu">
+                    <button class="dropdown-item active" data-filter="all">전체</button>
+                    <button class="dropdown-item" data-filter="draft">초안</button>
+                    <button class="dropdown-item" data-filter="published">게시됨</button>
+                    <button class="dropdown-item" data-filter="archived">보관됨</button>
+                </div>
+            </div>
+        </div>
+        <div class="toolbar-right">
+            <div class="search-box">
+                <i class="ri-search-line"></i>
+                <input type="text" placeholder="문서 검색..." id="doc-search">
+            </div>
+            <div class="sort-dropdown">
+                <button class="btn btn-ghost btn-sm dropdown-trigger">
+                    <i class="ri-sort-desc"></i>
+                    <span>정렬</span>
+                </button>
+                <div class="dropdown-menu">
+                    <button class="dropdown-item active" data-sort="updated_at">최근 수정</button>
+                    <button class="dropdown-item" data-sort="created_at">생성일</button>
+                    <button class="dropdown-item" data-sort="title">제목</button>
+                    <button class="dropdown-item" data-sort="view_count">조회수</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Documents Grid/List -->
+    <div class="documents-container" id="documents-container">
+        <div class="documents-grid" id="documents-grid">
+            <!-- Dynamic content -->
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <p>문서를 불러오는 중...</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Pagination -->
+    <div class="pagination" id="pagination">
+        <!-- Dynamic pagination -->
+    </div>
+</div>
+
+<!-- Document Card Template (hidden) -->
+<template id="document-card-template">
+    <div class="document-card" data-id="">
+        <div class="card-header">
+            <span class="card-icon"></span>
+            <div class="card-actions">
+                <button class="btn btn-icon btn-sm favorite-btn" title="즐겨찾기">
+                    <i class="ri-star-line"></i>
+                </button>
+                <button class="btn btn-icon btn-sm more-btn" title="더보기">
+                    <i class="ri-more-2-fill"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <h3 class="card-title"></h3>
+            <p class="card-summary"></p>
+        </div>
+        <div class="card-footer">
+            <span class="card-status"></span>
+            <span class="card-date"></span>
+        </div>
+    </div>
+</template>
+
+<!-- New Document Modal -->
+<div class="modal" id="new-doc-modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>새 문서 만들기</h3>
+            <button class="modal-close" id="close-new-doc">
+                <i class="ri-close-line"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <form id="new-doc-form">
+                <div class="form-group">
+                    <label for="doc-title">제목</label>
+                    <input type="text" id="doc-title" placeholder="문서 제목" required>
+                </div>
+                <div class="form-group">
+                    <label>템플릿</label>
+                    <div class="template-grid">
+                        <label class="template-option selected">
+                            <input type="radio" name="template" value="blank" checked>
+                            <div class="template-card">
+                                <i class="ri-file-line"></i>
+                                <span>빈 문서</span>
+                            </div>
+                        </label>
+                        <label class="template-option">
+                            <input type="radio" name="template" value="meeting">
+                            <div class="template-card">
+                                <i class="ri-calendar-event-line"></i>
+                                <span>회의록</span>
+                            </div>
+                        </label>
+                        <label class="template-option">
+                            <input type="radio" name="template" value="experiment">
+                            <div class="template-card">
+                                <i class="ri-flask-line"></i>
+                                <span>실험 노트</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="cancel-new-doc">취소</button>
+            <button type="submit" form="new-doc-form" class="btn btn-primary">만들기</button>
+        </div>
+    </div>
+</div>
+
+<!-- Workspace Settings Modal -->
+<div class="modal" id="workspace-settings-modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>워크스페이스 설정</h3>
+            <button class="modal-close" id="close-ws-settings">
+                <i class="ri-close-line"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <form id="ws-settings-form">
+                <div class="form-group">
+                    <label for="ws-name">이름</label>
+                    <input type="text" id="ws-name" value="{{ workspace.name }}" required>
+                </div>
+                <div class="form-group">
+                    <label for="ws-description">설명</label>
+                    <textarea id="ws-description" rows="3">{{ workspace.description or '' }}</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="ws-icon">아이콘</label>
+                    <input type="text" id="ws-icon" value="{{ workspace.icon }}" maxlength="2">
+                </div>
+            </form>
+            <div class="danger-zone">
+                <h4>위험 영역</h4>
+                <p>워크스페이스를 삭제하면 모든 문서가 함께 삭제됩니다.</p>
+                <button class="btn btn-error" id="delete-workspace-btn">
+                    <i class="ri-delete-bin-line"></i> 워크스페이스 삭제
+                </button>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="cancel-ws-settings">취소</button>
+            <button type="submit" form="ws-settings-form" class="btn btn-primary">저장</button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal" id="delete-confirm-modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3>삭제 확인</h3>
+            <button class="modal-close" id="close-delete-confirm">
+                <i class="ri-close-line"></i>
+            </button>
+        </div>
+        <div class="modal-body" style="text-align: center; padding: 24px;">
+            <i class="ri-error-warning-line" style="font-size: 3rem; color: var(--accent-error);"></i>
+            <p style="margin-top: 16px;">정말로 삭제하시겠습니까?<br>이 작업은 되돌릴 수 없습니다.</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="cancel-delete">취소</button>
+            <button class="btn btn-error" id="confirm-delete">삭제</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.danger-zone {
+    margin-top: 24px;
+    padding: 16px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--radius-md);
+}
+.danger-zone h4 {
+    color: var(--accent-error);
+    margin-bottom: 8px;
+}
+.danger-zone p {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+.btn-error {
+    background: var(--accent-error);
+    color: white;
+}
+.btn-error:hover {
+    background: #dc2626;
+}
+</style>
+
+<script>
+const WORKSPACE_ID = "{{ workspace.id }}";
+</script>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ root_path }}/static/js/workspace.js"></script>
+{% endblock %}
+

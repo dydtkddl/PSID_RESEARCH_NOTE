@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block content %}
+
+{# =========================
+   URL helpers (Consistency)
+   ========================= #}
+{% macro qurl(endpoint) -%}
+{{ request.url_for(endpoint).include_query_params(rel_path=project_rel_path) }}
+{%- endmacro %}
+
+{% macro project_page_url(p) -%}
+{{ request.url_for('project_view').include_query_params(
+    rel_path=project_rel_path,
+    sort=sort,
+    order=order,
+    page=p,
+    page_size=page_size,
+    q=q
+) }}
+{%- endmacro %}
+
+<div class="project-header"
+     style="--accent-color: {{ theme.accent }}; flex-wrap: wrap; gap: 8px;">
+  <div>
+    <h2>프로젝트: {{ project_name }}</h2>
+    <p class="meta">경로: {{ project_rel_path }}</p>
+  </div>
+  <div class="project-header-actions"
+       style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end;">
+    <a class="btn-secondary" href="{{ request.url_for('index') }}">
+      ← 프로젝트 목록으로
+    </a>
+    <a class="btn" href="{{ qurl('new_file') }}">
+      ＋ 새 문서
+    </a>
+    <a class="btn-secondary" href="{{ qurl('settings_view') }}">
+      ⚙ 설정
+    </a>
+  </div>
+</div>
+
+<form method="get"
+      action="{{ request.url_for('project_view') }}"
+      class="note-filter-form">
+  <input type="hidden" name="rel_path" value="{{ project_rel_path }}">
+
+  <label>
+    정렬:
+    <select name="sort">
+      <option value="modified" {{ 'selected' if sort == 'modified' else '' }}>수정일</option>
+      <option value="created"  {{ 'selected' if sort == 'created'  else '' }}>생성일</option>
+      <option value="name"     {{ 'selected' if sort == 'name'     else '' }}>파일명</option>
+    </select>
+  </label>
+
+  <label>
+    방향:
+    <select name="order">
+      <option value="desc" {{ 'selected' if order == 'desc' else '' }}>내림차순</option>
+      <option value="asc"  {{ 'selected' if order == 'asc'  else '' }}>오름차순</option>
+    </select>
+  </label>
+
+  <label>
+    페이지당:
+    <select name="page_size">
+      <option value="10"  {{ 'selected' if page_size == 10  else '' }}>10</option>
+      <option value="20"  {{ 'selected' if page_size == 20  else '' }}>20</option>
+      <option value="50"  {{ 'selected' if page_size == 50  else '' }}>50</option>
+      <option value="100" {{ 'selected' if page_size == 100 else '' }}>100</option>
+    </select>
+  </label>
+
+  <label class="note-filter-search" style="flex: 1 1 200px;">
+    검색:
+    <input type="text"
+           name="q"
+           value="{{ q }}"
+           placeholder="파일명 / 경로 / 태그 / 상태 검색">
+  </label>
+
+  <button type="submit" class="btn-secondary">적용</button>
+</form>
+
+{% if notes %}
+  <div class="note-table-wrapper">
+    <table class="note-table">
+      <thead>
+        <tr>
+          <th>제목</th>
+          <th>수정일시</th>
+          <th style="width: 160px;">액션</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for note in notes %}
+          {# 메인 행: 제목 + 수정일 + 액션 #}
+          <tr class="note-row">
+            <td class="note-title-cell">
+              <a href="{{ request.url_for('view_file').include_query_params(rel_path=note.rel_path) }}">
+                {{ note.name }}
+              </a>
+            </td>
+            <td class="note-date-cell">
+              {{ note.modified }}
+            </td>
+            <td class="note-action-cell">
+              <a class="btn-secondary"
+                 href="{{ request.url_for('edit_file').include_query_params(rel_path=note.rel_path) }}">
+                편집
+              </a>
+
+              <form method="post"
+                    action="{{ request.url_for('toggle_favorite') }}"
+                    style="display:inline;">
+                <input type="hidden" name="rel_path" value="{{ note.rel_path }}">
+                <button type="submit"
+                        class="btn-secondary"
+                        style="margin-left: 4px;">
+                  {% if note.is_favorite %}★{% else %}☆{% endif %}
+                </button>
+              </form>
+
+              <button type="button"
+                      class="btn-secondary btn-xs note-details-toggle"
+                      data-target="note-details-{{ loop.index }}">
+                상세 ▼
+              </button>
+            </td>
+          </tr>
+
+          {# 상세 정보 토글 행: 경로/태그/상태/TODO/생성일시 #}
+          <tr id="note-details-{{ loop.index }}" class="note-details-row">
+            <td colspan="3">
+              <div class="note-details">
+                <div class="note-details-item">
+                  <span class="note-details-label">경로</span>
+                  <span class="note-details-value path">{{ note.rel_path }}</span>
+                </div>
+
+                {% if note.tags %}
+                  <div class="note-details-item">
+                    <span class="note-details-label">태그</span>
+                    <span class="note-details-value">
+                      {% for tag in note.tags %}
+                        <span class="tag">#{{ tag }}</span>
+                      {% endfor %}
+                    </span>
+                  </div>
+                {% endif %}
+
+                {% if note.status %}
+                  <div class="note-details-item">
+                    <span class="note-details-label">상태</span>
+                    <span class="note-details-value">{{ note.status }}</span>
+                  </div>
+                {% endif %}
+
+                <div class="note-details-item">
+                  <span class="note-details-label">TODO</span>
+                  <span class="note-details-value">
+                    {% if note.todo_open > 0 %}
+                      {{ note.todo_open }}개 열림
+                    {% else %}
+                      없음
+                    {% endif %}
+                  </span>
+                </div>
+
+                <div class="note-details-item">
+                  <span class="note-details-label">생성일시</span>
+                  <span class="note-details-value">{{ note.created }}</span>
+                </div>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if total_pages > 1 %}
+    <div class="pagination">
+      {% if page > 1 %}
+        <a class="page-link" href="{{ project_page_url(page-1) }}">
+          ‹ 이전
+        </a>
+      {% endif %}
+
+      {% for p in range(1, total_pages + 1) %}
+        {% if p == page %}
+          <span class="page-link current">{{ p }}</span>
+        {% else %}
+          <a class="page-link" href="{{ project_page_url(p) }}">
+            {{ p }}
+          </a>
+        {% endif %}
+      {% endfor %}
+
+      {% if page < total_pages %}
+        <a class="page-link" href="{{ project_page_url(page+1) }}">
+          다음 ›
+        </a>
+      {% endif %}
+    </div>
+  {% endif %}
+
+{% else %}
+  <p>이 프로젝트에는 .md 파일이 없습니다.</p>
+{% endif %}
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const toggles = document.querySelectorAll('.note-details-toggle');
+
+    toggles.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const targetId = btn.getAttribute('data-target');
+        const row = document.getElementById(targetId);
+        if (!row) return;
+
+        const isHidden = row.style.display === '' || row.style.display === 'none';
+        row.style.display = isHidden ? 'table-row' : 'none';
+        btn.textContent = isHidden ? '상세 ▲' : '상세 ▼';
+      });
+    });
+  });
+</script>
+
+{% endblock %}

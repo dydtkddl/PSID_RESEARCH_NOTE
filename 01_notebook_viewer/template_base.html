@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ title if title else "연구노트 뷰어" }}</title>
+  <!-- 
+    FastAPI root_path="/research" 설정으로 
+    url_for() 자동으로 /research/... 경로 생성됨
+  -->
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+  <style>
+    /* 다크모드 지원 */
+    body.dark {
+      background: #111;
+      color: #eee;
+    }
+    body.dark a {
+      color: #9cd;
+    }
+    body.dark .header {
+      background: #000;
+    }
+    body.dark .project-card {
+      background: #222;
+      border-color: #444;
+    }
+    .header-nav {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      font-size: 0.9rem;
+    }
+    .header-nav a {
+      text-decoration: none;
+    }
+    #theme-toggle {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 1.1rem;
+    }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <h1 class="logo">
+        <a href="{{ url_for('index') }}">연구노트 뷰어</a>
+      </h1>
+      <nav class="header-nav">
+        <a href="{{ url_for('global_search') }}">🔍 전역 검색</a>
+        <a href="{{ url_for('tasks_view') }}">✅ 할 일</a>
+        <a href="{{ url_for('debug_log') }}">📜 로그</a>
+        <button id="theme-toggle" title="라이트/다크 전환">🌙</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script>
+    // 다크 모드 토글
+    (function() {
+      const body = document.body;
+      const btn = document.getElementById('theme-toggle');
+      const saved = localStorage.getItem('nv_theme') || 'light';
+      if (saved === 'dark') {
+        body.classList.add('dark');
+        if (btn) btn.textContent = '☀️';
+      }
+
+      if (btn) {
+        btn.addEventListener('click', function() {
+          const isDark = body.classList.toggle('dark');
+          localStorage.setItem('nv_theme', isDark ? 'dark' : 'light');
+          btn.textContent = isDark ? '☀️' : '🌙';
+        });
+      }
+    })();
+
+    // 에디터 페이지 단축키
+    (function() {
+      document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && (e.key === 's' || e.key === 'S')) {
+          const form = document.querySelector('form.editor-form');
+          if (form) {
+            e.preventDefault();
+            form.submit();
+          }
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

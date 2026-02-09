@@ -1,0 +1,27 @@
+{
+  "root_dir": "C:/Users/PSID_PC_20/Desktop/Reseach_Note",
+
+  "session": {
+    "secret": "CHANGE_ME_TO_A_LONG_RANDOM_STRING",
+    "ttl_seconds": 86400,
+    "cookie_name": "session",
+    "cookie_samesite": "lax",
+    "cookie_secure": false
+  },
+
+  "users": {
+    "admin": {
+      "password_hash": "pbkdf2_sha256$200000$REPLACE_ME$REPLACE_ME",
+      "projects": {
+        "*": { "read": true, "edit": true, "create": true }
+      }
+    },
+
+    "A": {
+      "password_hash": "pbkdf2_sha256$200000$REPLACE_ME$REPLACE_ME",
+      "projects": {
+        "Oligomer_IL": { "read": true, "edit": false, "create": false }
+      }
+    }
+  }
+}

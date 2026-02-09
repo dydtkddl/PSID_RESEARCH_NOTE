@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>프로젝트 목록</h2>
+
+{% if projects %}
+  <div class="project-list">
+    {% for proj in projects %}
+      <a class="project-card"
+         href="{{ url_for('project_view') }}?rel_path={{ proj.rel_path }}"
+         style="
+           --card-bg: {{ proj.theme.card_bg }};
+           --card-border: {{ proj.theme.card_border }};
+           --accent-color: {{ proj.theme.accent }};
+         ">
+        <div class="project-name">{{ proj.name }}</div>
+        <div class="project-path">{{ proj.rel_path }}</div>
+      </a>
+    {% endfor %}
+  </div>
+{% else %}
+  <p>프로젝트 디렉토리가 없습니다. ROOT_DIR 위치를 확인하세요.</p>
+{% endif %}
+
+<div class="dashboard-sections">
+  <section class="dashboard-section">
+    <h3>최근 열어본 노트</h3>
+    {% if recent_notes %}
+      <ul class="note-list">
+        {% for n in recent_notes %}
+          <li>
+            <a href="{{ url_for('view_file') }}?rel_path={{ n.rel_path }}">
+              {{ n.file_name }}
+            </a>
+            <span class="meta">
+              ({{ n.project_name }} · 수정: {{ n.modified }})
+            </span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="meta">최근 기록이 없습니다.</p>
+    {% endif %}
+  </section>
+
+  <section class="dashboard-section">
+    <h3>즐겨찾기 노트</h3>
+    {% if favorite_notes %}
+      <ul class="note-list">
+        {% for n in favorite_notes %}
+          <li>
+            <span class="favorite-star on">★</span>
+            <a href="{{ url_for('view_file') }}?rel_path={{ n.rel_path }}">
+              {{ n.file_name }}
+            </a>
+            <span class="meta">
+              ({{ n.project_name }} · 수정: {{ n.modified }})
+            </span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="meta">즐겨찾기 노트가 없습니다.</p>
+    {% endif %}
+  </section>
+</div>
+
+{% endblock %}

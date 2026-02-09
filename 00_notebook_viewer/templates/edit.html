@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+  {% if media_base_url %}
+    <base href="{{ media_base_url }}/">
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<div class="project-header"
+     style="--accent-color: {{ theme.accent }};">
+  <div>
+    <h2>문서 편집: {{ file_name }}</h2>
+    <p class="meta">경로: {{ rel_path }}</p>
+  </div>
+  <div class="project-header-actions">
+    <a class="btn-secondary"
+       href="{{ url_for('view_file') }}?rel_path={{ rel_path }}">
+      ← 상세보기로
+    </a>
+  </div>
+</div>
+
+<form method="post"
+      action="{{ url_for('save_file') }}"
+      class="editor-form">
+  <input type="hidden" name="rel_path" value="{{ rel_path }}">
+
+  <div class="editor-split">
+    <div class="editor-pane">
+      <label for="editor">Markdown 내용</label>
+      <textarea id="editor"
+                name="content"
+                class="editor-textarea"
+                spellcheck="false">{{ raw_content }}</textarea>
+      <p class="meta">
+        ● 아래 텍스트 영역을 클릭한 뒤 이미지 클립보드(Ctrl+V) 붙여넣기 →  
+        서버에 업로드 후 <code>![...](...)</code> 링크 자동 삽입<br>
+        ● 프로젝트 기준 폴더: <code>{{ image_base_dir }}</code>
+      </p>
+    </div>
+    <div class="preview-pane">
+      <div class="preview-header">미리보기</div>
+      <div id="preview" class="markdown-body preview-body">
+        <p class="meta">내용을 수정하면 실시간으로 렌더링됩니다.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="editor-actions">
+    <button type="submit" class="btn">저장</button>
+    <button type="button" class="btn-secondary" onclick="window.history.back()">취소</button>
+  </div>
+</form>
+
+<script>
+  const editor = document.getElementById('editor');
+  const preview = document.getElementById('preview');
+  const imageBaseDir = "{{ image_base_dir }}";
+  const uploadUrl = "{{ url_for('upload_image') }}";
+
+  function insertAtCursor(textarea, text) {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const value = textarea.value;
+    textarea.value = value.substring(0, start) + text + value.substring(end);
+    const pos = start + text.length;
+    textarea.selectionStart = textarea.selectionEnd = pos;
+    textarea.focus();
+  }
+
+  // 이미지 붙여넣기
+  editor.addEventListener('paste', function (e) {
+    const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (item.type && item.type.indexOf('image') !== -1) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('base_rel_dir', imageBaseDir);
+        formData.append('image', file);
+
+        fetch(uploadUrl, {
+          method: 'POST',
+          body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.ok && data.md_path) {
+            const md = `![pasted image](${data.md_path})\n`;
+            insertAtCursor(editor, md);
+            triggerPreviewUpdate();
+          } else {
+            alert('이미지 업로드에 실패했습니다.');
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          alert('이미지 업로드 중 오류가 발생했습니다.');
+        });
+
+        break;
+      }
+    }
+  });
+
+  // 라이브 프리뷰
+  let previewTimer = null;
+  function triggerPreviewUpdate() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(function () {
+      fetch("{{ url_for('render_preview') }}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markdown: editor.value || "" })
+      })
+      .then(res => res.json())
+      .then(data => {
+        preview.innerHTML = data.html || "";
+      })
+      .catch(err => {
+        console.error(err);
+      });
+    }, 300);
+  }
+
+  editor.addEventListener('input', triggerPreviewUpdate);
+  // 초기 1회 렌더
+  triggerPreviewUpdate();
+
+  // Ctrl+S → 저장
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      const form = document.querySelector('.editor-form');
+      if (form) form.submit();
+    }
+  });
+</script>
+
+{% endblock %}

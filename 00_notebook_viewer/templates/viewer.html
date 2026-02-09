@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+  {% if media_base_url %}
+    <base href="{{ media_base_url }}/">
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<div class="detail-header"
+     style="--accent-color: {{ theme.accent if theme else '#1f7aec' }};">
+  <div class="detail-nav-left">
+    {% if project_rel_path %}
+      <a class="btn-secondary"
+         href="{{ url_for('project_view') }}?rel_path={{ project_rel_path }}">
+        ← {{ project_name or '프로젝트' }} 목록으로
+      </a>
+    {% else %}
+      <button type="button" class="btn-secondary" onclick="window.history.back()">
+        ← 뒤로가기
+      </button>
+    {% endif %}
+  </div>
+  <div class="detail-nav-right">
+    {% if is_markdown %}
+      <a class="btn-secondary"
+         href="{{ url_for('edit_file') }}?rel_path={{ rel_path }}">
+        ✏️ 편집
+      </a>
+    {% endif %}
+    {% if is_markdown %}
+      <a class="btn-secondary"
+         href="{{ url_for('toggle_favorite') }}?rel_path={{ rel_path }}">
+        {% if is_favorite %}★ 즐겨찾기 해제{% else %}☆ 즐겨찾기{% endif %}
+      </a>
+    {% endif %}
+  </div>
+</div>
+
+<h2>{{ file_name }}</h2>
+<p class="meta">
+  경로: {{ rel_path }}<br>
+  타입: {{ file_type }}
+</p>
+
+{% if is_markdown and (meta_tags or meta_status or frontmatter) %}
+  <div class="meta-block">
+    {% if meta_tags %}
+      <div>태그:
+        {% for t in meta_tags %}
+          <span class="tag-badge">{{ t }}</span>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% if meta_status %}
+      <div>상태: <span class="status-badge">{{ meta_status }}</span></div>
+    {% endif %}
+  </div>
+{% endif %}
+
+<p>
+  <a class="btn" href="{{ download_md_url }}">⬇️ 원본 파일 다운로드</a>
+  {% if is_markdown %}
+    <a class="btn-secondary" href="{{ download_bundle_url }}">⬇️ MD + 이미지 번들(.zip)</a>
+  {% endif %}
+</p>
+
+{% if is_pdf %}
+  <h3>PDF 미리보기</h3>
+  <embed src="{{ download_md_url }}" type="application/pdf" width="100%" height="800px" />
+{% elif html_content %}
+  <div class="markdown-body">
+    {{ html_content | safe }}
+  </div>
+{% elif text_content %}
+  <pre class="code-block">{{ text_content }}</pre>
+{% else %}
+  <p>{{ unsupported_reason or "이 파일은 미리보기를 지원하지 않습니다." }}</p>
+{% endif %}
+
+{% if other_notes %}
+  <hr>
+  <h3>같은 프로젝트의 다른 노트</h3>
+  <ul class="other-notes">
+    {% for note in other_notes %}
+      <li>
+        <a href="{{ url_for('view_file') }}?rel_path={{ note.rel_path }}">
+          {{ note.name }}
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+{% endblock %}

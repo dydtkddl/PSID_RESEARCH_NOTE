@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="index-header">
+  <h2>프로젝트 목록</h2>
+</section>
+
+{% if projects %}
+
+  <div class="project-toolbar"
+       style="margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+    <button type="button" class="btn-small" id="reorder-toggle">
+      🔧 정렬 편집
+    </button>
+    <button type="button" class="btn-small" id="reorder-save" style="display: none;">
+      💾 순서 저장
+    </button>
+    <span class="meta" id="reorder-help" style="margin-left: 6px; display: none;">
+      카드를 드래그해서 순서를 바꾼 뒤, <strong>순서 저장</strong>을 눌러주세요.
+    </span>
+  </div>
+
+  <div class="project-list" id="project-list">
+    {% for proj in projects %}
+      <a class="project-card"
+         data-rel-path="{{ proj.rel_path }}"
+         href="{{ url_for('project_view') }}?rel_path={{ proj.rel_path }}"
+         style="
+           --card-bg: {{ proj.theme.card_bg }};
+           --card-border: {{ proj.theme.card_border }};
+           --accent-color: {{ proj.theme.accent }};
+         ">
+        <div class="project-name">{{ proj.name }}</div>
+        <div class="project-path">{{ proj.rel_path }}</div>
+      </a>
+    {% endfor %}
+  </div>
+
+{% else %}
+  <p>프로젝트 디렉토리가 없습니다. ROOT_DIR 위치를 확인하세요.</p>
+{% endif %}
+
+<hr>
+
+<div class="dashboard-sections">
+  <section class="dashboard-section">
+    <h3>최근 열어본 노트</h3>
+    {% if recent_notes %}
+      <ul class="note-list">
+        {% for note in recent_notes %}
+          <li>
+            <a href="{{ url_for('view_file') }}?rel_path={{ note.rel_path }}">
+              {{ note.name }}
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>최근 열람 기록이 없습니다.</p>
+    {% endif %}
+  </section>
+
+  <section class="dashboard-section">
+    <h3>즐겨찾기</h3>
+    {% if favorite_notes %}
+      <ul class="note-list">
+        {% for note in favorite_notes %}
+          <li>
+            <a href="{{ url_for('view_file') }}?rel_path={{ note.rel_path }}">
+              {{ note.name }}
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>즐겨찾기된 노트가 없습니다.</p>
+    {% endif %}
+  </section>
+</div>
+
+<script>
+  (function () {
+    const projectList   = document.getElementById('project-list');
+    const toggleBtn     = document.getElementById('reorder-toggle');
+    const saveBtn       = document.getElementById('reorder-save');
+    const helpText      = document.getElementById('reorder-help');
+    const saveOrderUrl  = "{{ url_for('save_project_order') }}";
+
+    if (!projectList || !toggleBtn || !saveBtn) return;
+
+    let isReorderMode = false;
+    let draggingEl = null;
+
+    function setReorderMode(on) {
+      isReorderMode = on;
+      const cards = projectList.querySelectorAll('.project-card');
+      cards.forEach(card => {
+        card.draggable = on;
+        card.classList.toggle('reorder-mode', on);
+      });
+      saveBtn.style.display = on ? 'inline-flex' : 'none';
+      helpText.style.display = on ? 'inline' : 'none';
+      toggleBtn.textContent = on ? '✅ 정렬 편집 종료' : '🔧 정렬 편집';
+    }
+
+    toggleBtn.addEventListener('click', () => {
+      setReorderMode(!isReorderMode);
+    });
+
+    projectList.addEventListener('click', (e) => {
+      if (!isReorderMode) return;
+      const a = e.target.closest('.project-card');
+      if (a) {
+        e.preventDefault();
+      }
+    });
+
+    projectList.addEventListener('dragstart', (e) => {
+      if (!isReorderMode) return;
+      const card = e.target.closest('.project-card');
+      if (!card) return;
+      draggingEl = card;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', card.dataset.relPath || '');
+    });
+
+    projectList.addEventListener('dragend', (e) => {
+      const card = e.target.closest('.project-card');
+      if (card) {
+        card.classList.remove('dragging');
+      }
+      draggingEl = null;
+    });
+
+    projectList.addEventListener('dragover', (e) => {
+      if (!isReorderMode || !draggingEl) return;
+      e.preventDefault();
+      const afterElement = getDragAfterElement(projectList, e.clientY);
+      if (!afterElement) {
+        projectList.appendChild(draggingEl);
+      } else {
+        projectList.insertBefore(draggingEl, afterElement);
+      }
+    });
+
+    function getDragAfterElement(container, y) {
+      const cards = [...container.querySelectorAll('.project-card:not(.dragging)')];
+      let closest = { offset: Number.NEGATIVE_INFINITY, element: null };
+
+      for (const card of cards) {
+        const box = card.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        if (offset < 0 && offset > closest.offset) {
+          closest = { offset, element: card };
+        }
+      }
+      return closest.element;
+    }
+
+    saveBtn.addEventListener('click', () => {
+      const cards = [...projectList.querySelectorAll('.project-card')];
+      const order = cards.map(c => c.dataset.relPath);
+
+      fetch(saveOrderUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ order })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.ok) {
+          alert('프로젝트 순서를 저장했습니다.');
+          setReorderMode(false);
+        } else {
+          alert('저장에 실패했습니다.');
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        alert('저장 중 오류가 발생했습니다.');
+      });
+    });
+  })();
+</script>
+
+{% endblock %}

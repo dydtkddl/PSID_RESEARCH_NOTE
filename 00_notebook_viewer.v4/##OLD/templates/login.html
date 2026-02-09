@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="login-container"
+     style="max-width: 360px; margin: 72px auto 40px; padding: 16px; border-radius: 8px;
+            background-color: var(--card-bg); border: 1px solid var(--card-border);">
+  <h2 style="margin-top: 0; margin-bottom: 8px;">로그인</h2>
+  <p class="meta" style="margin-bottom: 12px;">
+    이 뷰어는 보호되어 있습니다. <code>config.json</code> 에 설정한 계정으로 로그인하세요.
+  </p>
+
+  {% if error %}
+    <div style="color: #c33; margin-bottom: 8px; font-size: 0.9rem;">
+      {{ error }}
+    </div>
+  {% endif %}
+
+  <form method="post"
+        action="{{ url_for('login_submit') }}"
+        class="login-form">
+    <div class="settings-row" style="margin-bottom: 8px;">
+      <label for="username">아이디</label>
+      <input id="username"
+             type="text"
+             name="username"
+             autocomplete="username"
+             style="width: 100%; padding: 6px 8px; box-sizing: border-box;">
+    </div>
+
+    <div class="settings-row" style="margin-bottom: 12px;">
+      <label for="password">비밀번호</label>
+      <input id="password"
+             type="password"
+             name="password"
+             autocomplete="current-password"
+             style="width: 100%; padding: 6px 8px; box-sizing: border-box;">
+    </div>
+
+    <div class="settings-actions" style="margin-top: 12px;">
+      <button type="submit" class="btn" style="width: 100%;">로그인</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  (function () {
+    const idInput = document.getElementById('username');
+    if (idInput) {
+      idInput.focus();
+    }
+  })();
+</script>
+
+{% endblock %}

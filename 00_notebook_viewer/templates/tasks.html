@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>전역 할 일(Task) 목록</h2>
+
+<section class="dashboard-section">
+  <h3>열려 있는 할 일</h3>
+  {% if open_tasks %}
+    <table class="note-table">
+      <thead>
+        <tr>
+          <th>텍스트</th>
+          <th>노트</th>
+          <th>프로젝트</th>
+          <th>태그</th>
+          <th>노트 상태</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in open_tasks %}
+          <tr>
+            <td>{{ t.text }}</td>
+            <td>
+              <a href="{{ url_for('view_file') }}?rel_path={{ t.rel_path }}">
+                {{ t.file_name }}
+              </a>
+            </td>
+            <td>{{ t.project_name }}</td>
+            <td>
+              {% for tag in t.tags %}
+                <span class="tag-badge">{{ tag }}</span>
+              {% endfor %}
+            </td>
+            <td>{{ t.note_status }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="meta">열려 있는 할 일이 없습니다.</p>
+  {% endif %}
+</section>
+
+<section class="dashboard-section">
+  <h3>완료된 할 일</h3>
+  {% if done_tasks %}
+    <details>
+      <summary>완료된 할 일 {{ done_tasks|length }}개 보기</summary>
+      <table class="note-table">
+        <thead>
+          <tr>
+            <th>텍스트</th>
+            <th>노트</th>
+            <th>프로젝트</th>
+            <th>태그</th>
+            <th>노트 상태</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in done_tasks %}
+            <tr>
+              <td>{{ t.text }}</td>
+              <td>
+                <a href="{{ url_for('view_file') }}?rel_path={{ t.rel_path }}">
+                  {{ t.file_name }}
+                </a>
+              </td>
+              <td>{{ t.project_name }}</td>
+              <td>
+                {% for tag in t.tags %}
+                  <span class="tag-badge">{{ tag }}</span>
+                {% endfor %}
+              </td>
+              <td>{{ t.note_status }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  {% else %}
+    <p class="meta">완료된 할 일이 없습니다.</p>
+  {% endif %}
+</section>
+
+{% endblock %}

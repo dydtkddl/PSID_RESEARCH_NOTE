@@ -1,0 +1,38 @@
+.
+├── __pycache__
+│   ├── main.cpython-310.pyc
+│   └── main.cpython-311.pyc
+├── config.json
+├── favorites.json
+├── highlights.json
+├── main.py
+├── main.txt
+├── md파일문법.md
+├── notebook_viewer.log
+├── project_order.json
+├── recents.json
+├── static
+│   └── style.css
+├── static.txt
+├── template.txt
+├── templates
+│   ├── base.html
+│   ├── debug_log.html
+│   ├── edit.html
+│   ├── index.html
+│   ├── login.html
+│   ├── new.html
+│   ├── project.html
+│   ├── search.html
+│   ├── settings.html
+│   ├── tasks.html
+│   └── viewer.html
+├── themes.json
+├── tmp
+├── tree.txt
+├── 논문리뷰템플릿.md
+├── 논문리뷰템플릿.pdf
+├── 연구노트템플릿.md
+└── 연구노트템플릿.pdf
+
+4 directories, 31 files

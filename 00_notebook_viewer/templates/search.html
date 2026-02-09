@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>전역 검색</h2>
+
+<form method="get" action="{{ url_for('search_view') }}" class="note-filter-form">
+  <label>
+    검색어:
+    <input type="text" name="q" value="{{ q }}" placeholder="본문 / 파일명 검색">
+  </label>
+  <label>
+    태그:
+    <input type="text" name="tag" value="{{ tag }}" placeholder="frontmatter tags 값">
+  </label>
+  <label>
+    상태:
+    <select name="status">
+      <option value=""  {{ '' == status  and 'selected' or '' }}>전체</option>
+      <option value="draft" {{ 'draft' == status and 'selected' or '' }}>draft</option>
+      <option value="in-progress" {{ 'in-progress' == status and 'selected' or '' }}>in-progress</option>
+      <option value="done" {{ 'done' == status and 'selected' or '' }}>done</option>
+    </select>
+  </label>
+  <button type="submit" class="btn-secondary">검색</button>
+</form>
+
+{% if not searched %}
+  <p class="meta">검색어 또는 태그/상태를 지정한 후 검색하세요.</p>
+{% else %}
+  {% if results %}
+    <p class="meta">총 {{ results|length }}개 결과</p>
+    <ul class="search-results">
+      {% for r in results %}
+        <li class="search-result-item">
+          <div class="search-result-title">
+            {% if r.is_favorite %}
+              <span class="favorite-star on">★</span>
+            {% else %}
+              <span class="favorite-star">☆</span>
+            {% endif %}
+            <a href="{{ url_for('view_file') }}?rel_path={{ r.rel_path }}">
+              {{ r.file_name }}
+            </a>
+            <span class="meta">
+              ({{ r.project_name }} · 수정: {{ r.modified }})
+            </span>
+          </div>
+          <div class="search-result-tags">
+            {% for t in r.tags %}
+              <span class="tag-badge">{{ t }}</span>
+            {% endfor %}
+            {% if r.status %}
+              <span class="status-badge">{{ r.status }}</span>
+            {% endif %}
+          </div>
+          {% if r.snippet %}
+            <div class="search-result-snippet">
+              ... {{ r.snippet }} ...
+            </div>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="meta">검색 결과가 없습니다.</p>
+  {% endif %}
+{% endif %}
+
+{% endblock %}

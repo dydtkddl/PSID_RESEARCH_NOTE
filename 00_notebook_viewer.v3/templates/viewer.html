@@ -1,0 +1,888 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+  {% if media_base_url %}
+    <base href="{{ media_base_url }}/">
+  {% endif %}
+
+  <style>
+    .hl-toolbar{
+      position: fixed; z-index: 9999;
+      background: #fff; border: 1px solid #ddd; border-radius: 10px;
+      padding: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.12);
+      max-width: 360px; width: 320px;
+    }
+    @media (max-width: 480px){
+      .hl-toolbar{ width: min(92vw, 360px); max-width: 92vw; }
+    }
+
+    .hl-colors{ display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
+    .hl-color{
+      width: 22px; height: 22px; border-radius: 6px;
+      border: 1px solid #ccc; cursor: pointer;
+    }
+    .hl-color[data-color="#fff59d"]{ background:#fff59d; }
+    .hl-color[data-color="#c8e6c9"]{ background:#c8e6c9; }
+    .hl-color[data-color="#bbdefb"]{ background:#bbdefb; }
+    .hl-color[data-color="#ffcdd2"]{ background:#ffcdd2; }
+    #hl-custom{ width: 40px; height: 24px; padding:0; border:none; background:transparent; cursor:pointer; }
+    .hl-note{ width:100%; box-sizing:border-box; padding:8px; border:1px solid #ddd; border-radius:8px; margin-bottom:8px; }
+    .hl-actions{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+
+    /* 하이라이트 기본 */
+    .hl-span{ border-radius: 4px; padding: 0 2px; cursor: pointer; }
+
+    /* 메모가 있으면 마지막 span에만 💬 표시 */
+    .hl-span[data-hl-end="1"][data-hl-note]:not([data-hl-note=""])::after{
+      content: "💬";
+      font-size: 1.0em;
+      margin-left: 3px;
+      opacity: 0.9;
+      vertical-align: middle;
+      color: #111;
+    }
+
+    /* ✅ 우측하단 sticky 토글(FAB) */
+    .hl-fab{
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 10001;
+      border: 1px solid rgba(0,0,0,.12);
+      border-radius: 999px;
+      padding: 10px 12px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.18);
+      background: #fff;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+    }
+    .hl-fab .dot{
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #2e7d32; /* ON */
+    }
+    .hl-fab[data-on="0"] .dot{ background: #9e9e9e; } /* OFF */
+    .hl-fab .label{ font-size: 13px; }
+    @media (max-width: 480px){
+      .hl-fab{ right: 12px; bottom: 12px; padding: 10px 12px; }
+      .hl-fab .label{ font-size: 12px; }
+    }
+
+    /* 폰에서 터치 스크롤 안정 */
+    #md-container{ -webkit-overflow-scrolling: touch; }
+  </style>
+{% endblock %}
+
+{% block content %}
+
+<div class="detail-header"
+     style="--accent-color: {{ theme.accent if theme else '#1f7aec' }};">
+  <div class="detail-nav-left">
+    {% if project_rel_path %}
+      <a class="btn-secondary"
+         href="{{ url_for('project_view') }}?rel_path={{ project_rel_path }}">
+        ← {{ project_name or '프로젝트' }} 목록으로
+      </a>
+    {% else %}
+      <button type="button"
+              class="btn-secondary"
+              onclick="window.history.back()">
+        ← 뒤로가기
+      </button>
+    {% endif %}
+  </div>
+  <div class="detail-nav-right" style="display: flex; gap: 8px; flex-wrap: wrap;">
+    {% if is_markdown %}
+      <a class="btn-secondary"
+         href="{{ url_for('edit_file') }}?rel_path={{ rel_path }}">
+        ✏️ 편집
+      </a>
+    {% endif %}
+    <form method="post"
+          action="{{ url_for('toggle_favorite') }}"
+          style="display:inline;">
+      <input type="hidden" name="rel_path" value="{{ rel_path }}">
+      <button type="submit" class="btn-secondary">
+        {% if is_favorite %}★ 즐겨찾기 해제{% else %}☆ 즐겨찾기{% endif %}
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="viewer-layout">
+  <section class="viewer-main">
+    <h2>{{ file_name }}</h2>
+    <p class="meta">
+      경로: {{ rel_path }}<br>
+      타입: {{ file_type }}
+    </p>
+
+    <p style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+      <a class="btn" href="{{ download_file_url }}">⬇️ 원본 파일 다운로드</a>
+
+      {% if is_markdown %}
+        <a class="btn-secondary" href="{{ url_for('download_pdf', rel_path=rel_path) }}">📄 PDF로 다운로드</a>
+      {% endif %}
+
+      {% if is_markdown and download_bundle_url %}
+        <a class="btn-secondary" href="{{ download_bundle_url }}">⬇️ MD + 이미지 번들(.zip)</a>
+      {% endif %}
+    </p>
+
+    {% if is_markdown and meta %}
+      <details class="meta-details" id="frontmatter-details" open>
+        <summary>메타데이터 (frontmatter)</summary>
+
+        <table class="meta-table">
+          <tbody>
+          {% for k, v in meta.items() %}
+            <tr>
+              <th>{{ k }}</th>
+              <td>
+                {% if v is sequence and v is not string %}
+                  <ul class="meta-list">
+                    {% for item in v %}
+                      <li>{{ item }}</li>
+                    {% endfor %}
+                  </ul>
+                {% elif v is mapping %}
+                  <pre class="meta-json">{{ v | tojson(indent=2) }}</pre>
+                {% else %}
+                  {{ v }}
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </details>
+    {% endif %}
+
+    {% if tags %}
+      <p class="meta">
+        태그:
+        {% for t in tags %}
+          <span class="tag">#{{ t }}</span>
+        {% endfor %}
+      </p>
+    {% endif %}
+
+    {% if status %}
+      <p class="meta">
+        상태: <strong>{{ status }}</strong>
+        {% if todo_open_count %}
+          (열린 TODO: {{ todo_open_count }}개)
+        {% endif %}
+      </p>
+    {% endif %}
+
+    {% if is_pdf %}
+      <h3>PDF 미리보기</h3>
+      <embed src="{{ download_file_url }}"
+             type="application/pdf"
+             width="100%"
+             height="800px" />
+
+    {% elif html_content %}
+      <div class="markdown-body" id="md-container">
+        {{ html_content | safe }}
+      </div>
+
+      <!-- ✅ 우측하단 형광펜 ON/OFF 토글 -->
+      <button id="hl-fab" class="hl-fab" type="button" aria-pressed="true" data-on="1" title="형광펜 모드 ON/OFF">
+        <span class="dot" aria-hidden="true"></span>
+        <span class="label">형광펜</span>
+      </button>
+
+      <!-- ✅ 하이라이트 툴바 -->
+      <div id="hl-toolbar" class="hl-toolbar" style="display:none;">
+        <div class="hl-colors">
+          <button type="button" class="hl-color" data-color="#fff59d" title="Yellow"></button>
+          <button type="button" class="hl-color" data-color="#c8e6c9" title="Green"></button>
+          <button type="button" class="hl-color" data-color="#bbdefb" title="Blue"></button>
+          <button type="button" class="hl-color" data-color="#ffcdd2" title="Red"></button>
+          <input type="color" id="hl-custom" title="Custom color" />
+        </div>
+
+        <input id="hl-note" class="hl-note" placeholder="메모(옵션)" />
+
+        <div class="hl-actions">
+          <button type="button" id="hl-edit" class="btn-secondary">여기부터 수정</button>
+
+          <button type="button" id="hl-save" class="btn">저장</button>
+          <button type="button" id="hl-update" class="btn-secondary" style="display:none;">색/메모 수정</button>
+          <button type="button" id="hl-delete" class="btn-secondary" style="display:none;">삭제</button>
+          <button type="button" id="hl-cancel" class="btn-secondary">닫기</button>
+        </div>
+      </div>
+
+      <script>
+        (function(){
+          const REL_PATH = {{ rel_path|tojson }};
+          const NOTE_HASH = {{ content_hash|tojson }};
+          const EDIT_URL = {{ (url_for('edit_file') ~ '') | tojson }};
+
+          const container = document.getElementById("md-container");
+          if (!container) return;
+
+          const fab = document.getElementById("hl-fab");
+          const toolbar = document.getElementById("hl-toolbar");
+          const noteInput = document.getElementById("hl-note");
+          const editBtn = document.getElementById("hl-edit");
+          const saveBtn = document.getElementById("hl-save");
+          const updateBtn = document.getElementById("hl-update");
+          const deleteBtn = document.getElementById("hl-delete");
+          const cancelBtn = document.getElementById("hl-cancel");
+          const customColor = document.getElementById("hl-custom");
+
+          const log = (...args) => console.log("[HL]", ...args);
+
+          // ✅ Undo 스택 + 현재 하이라이트 상태
+          const undoStack = [];
+          const hlMap = new Map(); // id -> {id,start,end,color,note,text,content_hash}
+
+          function isTypingTarget(el){
+            return el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+          }
+
+          function unwrapHighlight(id){
+            document.querySelectorAll(`[data-hl-id="${id}"]`).forEach(span => {
+              span.replaceWith(document.createTextNode(span.textContent || ""));
+            });
+          }
+
+          // =========================
+          // ✅ 형광펜 모드 토글 (localStorage)
+          // =========================
+          const LS_KEY = "highlight_enabled_v1";
+          let highlightEnabled = true;
+
+          function setMode(on){
+            highlightEnabled = !!on;
+            fab.dataset.on = highlightEnabled ? "1" : "0";
+            fab.setAttribute("aria-pressed", highlightEnabled ? "true" : "false");
+            if (!highlightEnabled) {
+              hideToolbar();
+              const sel = window.getSelection();
+              if (sel) sel.removeAllRanges();
+            }
+            try { localStorage.setItem(LS_KEY, highlightEnabled ? "1" : "0"); } catch(e){}
+            log("mode:", highlightEnabled ? "ON" : "OFF");
+          }
+
+          (function initMode(){
+            try{
+              const v = localStorage.getItem(LS_KEY);
+              if (v === "0") setMode(false);
+              else setMode(true);
+            }catch(e){
+              setMode(true);
+            }
+          })();
+
+          fab.addEventListener("click", () => setMode(!highlightEnabled));
+
+          // =========================
+          // UI helpers
+          // =========================
+          let currentColor = "#fff59d";
+          let pendingRange = null;   // selection 기반
+          let editingId = null;      // 기존 highlight 클릭 기반
+
+          let lastPoint = { x: Math.round(window.innerWidth/2), y: Math.round(window.innerHeight/2) };
+
+          // ✅ 핵심: 드래그(버튼 누른 상태)에서는 절대 툴바 오픈 금지
+          let isPointerDown = false;
+
+          container.addEventListener("pointerdown", (e) => {
+            isPointerDown = true;
+            lastPoint = { x: e.clientX || lastPoint.x, y: e.clientY || lastPoint.y };
+          }, { passive: true });
+
+          // pointer가 컨테이너 밖에서 올라가도 상태 복구
+          document.addEventListener("pointerup", () => {
+            isPointerDown = false;
+          }, { passive: true });
+
+          function showToolbar(x, y){
+            const w = Math.min(340, Math.max(260, window.innerWidth * 0.92));
+            const left = Math.max(12, Math.min(x, window.innerWidth - (w + 12)));
+            const top  = Math.max(12, Math.min(y, window.innerHeight - 220));
+            toolbar.style.left = left + "px";
+            toolbar.style.top  = top + "px";
+            toolbar.style.display = "block";
+          }
+
+          function focusNoteNow(){
+            // ✅ 툴바 뜨자마자 input focus
+            try { noteInput.focus({ preventScroll: true }); }
+            catch(e){ try { noteInput.focus(); } catch(_e){} }
+          }
+
+          function hideToolbar(){
+            toolbar.style.display = "none";
+            pendingRange = null;
+            editingId = null;
+            noteInput.value = "";
+            saveBtn.style.display = "inline-block";
+            updateBtn.style.display = "none";
+            deleteBtn.style.display = "none";
+          }
+
+          function primaryAction(){
+            const saving = saveBtn && saveBtn.style.display !== "none";
+            if (saving) saveBtn.click();
+            else updateBtn.click();
+          }
+
+          noteInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              primaryAction();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              hideToolbar();
+            }
+          });
+
+          function getOffsetsFromRange(range){
+            const pre1 = document.createRange();
+            pre1.selectNodeContents(container);
+            pre1.setEnd(range.startContainer, range.startOffset);
+            const start = pre1.toString().length;
+
+            const pre2 = document.createRange();
+            pre2.selectNodeContents(container);
+            pre2.setEnd(range.endContainer, range.endOffset);
+            const end = pre2.toString().length;
+
+            return { start, end, text: range.toString() };
+          }
+
+          function applyHighlightByOffsets(start, end, id, color, note){
+            if (end <= start) return;
+
+            const nodes = [];
+            let pos = 0;
+            const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+            let n;
+            while(n = walker.nextNode()){
+              const len = (n.nodeValue || "").length;
+              nodes.push({ node: n, start: pos, end: pos + len });
+              pos += len;
+            }
+
+            let endMarked = false;
+            const memo = (note || "").trim();
+
+            for (let i = nodes.length - 1; i >= 0; i--){
+              const info = nodes[i];
+              if (info.end <= start) break;
+              if (info.start >= end) continue;
+
+              const a = Math.max(start, info.start) - info.start;
+              const b = Math.min(end, info.end) - info.start;
+              if (b <= a) continue;
+
+              const full = info.node.nodeValue || "";
+              const before = full.slice(0, a);
+              const mid = full.slice(a, b);
+              const after = full.slice(b);
+
+              const frag = document.createDocumentFragment();
+              if (before) frag.appendChild(document.createTextNode(before));
+
+              const span = document.createElement("span");
+              span.className = "hl-span";
+              span.dataset.hlId = id;
+              span.dataset.hlColor = color || "";
+              span.dataset.hlNote = memo;
+              span.style.backgroundColor = color;
+
+              if (memo) span.title = memo;
+              else span.removeAttribute("title");
+
+              if (!endMarked){
+                span.dataset.hlEnd = "1";
+                endMarked = true;
+              }
+
+              span.textContent = mid;
+              frag.appendChild(span);
+
+              if (after) frag.appendChild(document.createTextNode(after));
+
+              info.node.parentNode.replaceChild(frag, info.node);
+            }
+          }
+
+          function setAllSpansColor(id, color){
+            document.querySelectorAll(`[data-hl-id="${id}"]`).forEach(el => {
+              el.style.backgroundColor = color;
+              el.dataset.hlColor = color || "";
+            });
+          }
+
+          function setAllSpansNote(id, note){
+            const n = (note || "").trim();
+            document.querySelectorAll(`[data-hl-id="${id}"]`).forEach(el => {
+              el.dataset.hlNote = n;
+              if (n) el.title = n;
+              else el.removeAttribute("title");
+            });
+          }
+
+          function getHighlightTextById(id){
+            const st = hlMap.get(id);
+            if (st && st.text) return (st.text || "").trim();
+
+            const spans = Array.from(document.querySelectorAll(`[data-hl-id="${id}"]`));
+            const s = spans.map(x => x.textContent || "").join("");
+            return (s || "").trim();
+          }
+
+          // =========================
+          // ✅ 여기부터 수정 (편집 이동)
+          // =========================
+          function gotoEdit(snippet, startHint){
+            const s = (snippet || "").trim().slice(0, 500);
+            const start = Number.isFinite(startHint) ? Math.max(0, Math.floor(startHint)) : 0;
+
+            const url =
+              `${EDIT_URL}?rel_path=${encodeURIComponent(REL_PATH)}`
+              + `&focus=1`
+              + `&start=${encodeURIComponent(String(start))}`
+              + `&snippet=${encodeURIComponent(s)}`;
+
+            log("gotoEdit:", { start, snippet: s });
+            window.location.href = url;
+          }
+
+          editBtn.addEventListener("click", () => {
+            try{
+              if (!highlightEnabled) return;
+
+              if (editingId){
+                const snippet = getHighlightTextById(editingId);
+                const st = hlMap.get(editingId);
+                const startHint = st ? st.start : 0;
+                gotoEdit(snippet, startHint);
+                return;
+              }
+
+              if (pendingRange){
+                const { start, text } = getOffsetsFromRange(pendingRange);
+                gotoEdit(text || "", start);
+                return;
+              }
+
+              gotoEdit("", 0);
+            }catch(e){
+              alert("편집 이동 실패: " + (e && e.message ? e.message : e));
+            }
+          });
+
+          // =========================
+          // API
+          // =========================
+          async function apiGetHighlights(){
+            const url = `/research/highlights?rel_path=${encodeURIComponent(REL_PATH)}`;
+            const res = await fetch(url);
+            return await res.json();
+          }
+
+          async function apiAddHighlight(payload){
+            const res = await fetch("/research/highlights/add", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            });
+            const data = await res.json().catch(()=>({}));
+            if (!res.ok) throw new Error(data.detail || "add failed");
+            return data;
+          }
+
+          async function apiUpdateHighlight(payload){
+            const res = await fetch("/research/highlights/update", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            });
+            const data = await res.json().catch(()=>({}));
+            if (!res.ok) throw new Error(data.detail || "update failed");
+            return data;
+          }
+
+          async function apiDeleteHighlight(payload){
+            const res = await fetch("/research/highlights/delete", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            });
+            const data = await res.json().catch(()=>({}));
+            if (!res.ok) throw new Error(data.detail || "delete failed");
+            return data;
+          }
+
+          // 색상 선택
+          toolbar.querySelectorAll(".hl-color").forEach(btn => {
+            btn.addEventListener("click", () => {
+              currentColor = btn.dataset.color;
+              customColor.value = currentColor;
+            });
+          });
+          customColor.addEventListener("input", () => {
+            currentColor = customColor.value;
+          });
+          customColor.value = currentColor;
+
+          // =========================
+          // ✅ 선택 감지: "pointerup" 에서만 툴바 오픈
+          // - selectionchange에서는 절대 오픈하지 않음
+          // =========================
+          function tryOpenToolbarFromSelection(){
+            if (!highlightEnabled) return;
+            if (isTypingTarget(document.activeElement)) return;
+
+            // ✅ 드래그 중(버튼 누른 상태)에는 절대 열지 않음
+            if (isPointerDown) return;
+
+            const sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0) return;
+
+            const range = sel.getRangeAt(0);
+            if (range.collapsed) return;
+            if (!container.contains(range.commonAncestorContainer)) return;
+
+            pendingRange = range.cloneRange();
+            editingId = null;
+
+            saveBtn.style.display = "inline-block";
+            updateBtn.style.display = "none";
+            deleteBtn.style.display = "none";
+            noteInput.value = "";
+
+            let rect = range.getBoundingClientRect();
+            if (!rect || (rect.width === 0 && rect.height === 0)) {
+              showToolbar(lastPoint.x, lastPoint.y - 10);
+            } else {
+              showToolbar(rect.left + rect.width/2, rect.top - 10);
+            }
+
+            // ✅ 툴바 뜨자마자 focus
+            setTimeout(focusNoteNow, 0);
+          }
+
+          // ✅ (2) pointerup 때만 오픈
+          // - setTimeout으로 selection 확정된 뒤 실행
+          container.addEventListener("pointerup", () => {
+            setTimeout(tryOpenToolbarFromSelection, 0);
+          }, { passive: true });
+
+          // ✅ (1) selectionchange는 "절대 오픈" 금지: 완전 무시(혹은 로깅만)
+          // document.addEventListener("selectionchange", () => {});
+
+          // 기존 하이라이트 클릭 → 편집 모드
+          container.addEventListener("click", (e) => {
+            const el = e.target.closest(".hl-span");
+            if (!el) return;
+
+            if (!highlightEnabled) return;
+
+            editingId = el.dataset.hlId || null;
+            pendingRange = null;
+
+            const storedNote = el.dataset.hlNote || "";
+            const storedColor = el.dataset.hlColor || currentColor;
+            noteInput.value = storedNote;
+            currentColor = storedColor;
+            customColor.value = currentColor;
+
+            saveBtn.style.display = "none";
+            updateBtn.style.display = "inline-block";
+            deleteBtn.style.display = "inline-block";
+
+            showToolbar(e.clientX || lastPoint.x, e.clientY || lastPoint.y);
+
+            // ✅ 툴바 뜨자마자 focus
+            setTimeout(focusNoteNow, 0);
+          });
+
+          // 저장
+          saveBtn.addEventListener("click", async () => {
+            try{
+              if (!highlightEnabled) return;
+              if (!pendingRange) return;
+
+              const {start, end, text} = getOffsetsFromRange(pendingRange);
+              const memo = (noteInput.value || "").trim();
+
+              const payload = {
+                rel_path: REL_PATH,
+                start, end,
+                color: currentColor,
+                text: (text || "").trim(),
+                content_hash: NOTE_HASH,
+                note: memo
+              };
+
+              const res = await apiAddHighlight(payload);
+              const hid = res.id;
+
+              applyHighlightByOffsets(start, end, hid, currentColor, memo);
+
+              hlMap.set(hid, { id: hid, start, end, color: currentColor, note: memo, text: payload.text, content_hash: NOTE_HASH });
+              undoStack.push({ op: "add", id: hid });
+
+              const sel = window.getSelection();
+              if (sel) sel.removeAllRanges();
+              hideToolbar();
+            }catch(err){
+              alert("하이라이트 저장 실패: " + (err.message || err));
+            }
+          });
+
+          // 수정
+          updateBtn.addEventListener("click", async () => {
+            try{
+              if (!highlightEnabled) return;
+              if (!editingId) return;
+
+              const memo = (noteInput.value || "").trim();
+              const prev = hlMap.get(editingId) || {};
+
+              await apiUpdateHighlight({
+                rel_path: REL_PATH,
+                id: editingId,
+                color: currentColor,
+                note: memo
+              });
+
+              setAllSpansColor(editingId, currentColor);
+              setAllSpansNote(editingId, memo);
+
+              hlMap.set(editingId, { ...prev, id: editingId, color: currentColor, note: memo });
+              undoStack.push({
+                op: "update",
+                id: editingId,
+                prev: { color: prev.color, note: prev.note },
+                next: { color: currentColor, note: memo }
+              });
+
+              hideToolbar();
+            }catch(err){
+              alert("하이라이트 수정 실패: " + (err.message || err));
+            }
+          });
+
+          // 삭제
+          deleteBtn.addEventListener("click", async () => {
+            try{
+              if (!highlightEnabled) return;
+              if (!editingId) return;
+
+              const prev = hlMap.get(editingId);
+
+              await apiDeleteHighlight({ rel_path: REL_PATH, id: editingId });
+
+              unwrapHighlight(editingId);
+              hlMap.delete(editingId);
+              undoStack.push({ op: "delete", prev });
+
+              hideToolbar();
+            }catch(err){
+              alert("하이라이트 삭제 실패: " + (err.message || err));
+            }
+          });
+
+          cancelBtn.addEventListener("click", hideToolbar);
+
+          // 저장된 하이라이트 복원
+          (async function init(){
+            try{
+              const data = await apiGetHighlights();
+              const items = (data.items || []).slice();
+              items.sort((a,b) => (b.start||0) - (a.start||0));
+
+              const fullText = container.textContent || "";
+
+              for (const it of items){
+                const id = it.id;
+                const color = it.color || "#fff59d";
+                const memo = (it.note || "").trim();
+                let s = parseInt(it.start, 10);
+                let e = parseInt(it.end, 10);
+
+                if (it.stale && it.text){
+                  const needle = (it.text || "").trim();
+                  if (needle){
+                    const from = Math.max(0, s - 800);
+                    const idx = fullText.indexOf(needle, from);
+                    if (idx >= 0){
+                      s = idx;
+                      e = idx + needle.length;
+                    } else {
+                      continue;
+                    }
+                  }
+                }
+
+                applyHighlightByOffsets(s, e, id, color, memo);
+                hlMap.set(id, { id, start: s, end: e, color, note: memo, text: it.text || "", content_hash: it.content_hash || NOTE_HASH });
+              }
+            }catch(err){
+              console.warn("highlight init failed", err);
+            }
+          })();
+
+          // 바깥 클릭/터치 시 닫기
+          document.addEventListener("pointerdown", (e) => {
+            if (toolbar.style.display !== "block") return;
+            if (toolbar.contains(e.target)) return;
+            if (e.target.closest(".hl-span")) return;
+            hideToolbar();
+          });
+
+          // Ctrl+Z Undo (입력칸 포커스면 기본 undo 유지)
+          async function undoLast(){
+            if (!undoStack.length) return;
+            const act = undoStack.pop();
+
+            try{
+              if (act.op === "add") {
+                await apiDeleteHighlight({ rel_path: REL_PATH, id: act.id });
+                unwrapHighlight(act.id);
+                hlMap.delete(act.id);
+                return;
+              }
+
+              if (act.op === "update") {
+                const prevColor = (act.prev && act.prev.color) ? act.prev.color : "#fff59d";
+                const prevNote  = (act.prev && act.prev.note)  ? act.prev.note  : "";
+
+                await apiUpdateHighlight({
+                  rel_path: REL_PATH,
+                  id: act.id,
+                  color: prevColor,
+                  note: prevNote
+                });
+
+                setAllSpansColor(act.id, prevColor);
+                setAllSpansNote(act.id, prevNote);
+
+                const cur = hlMap.get(act.id) || {};
+                hlMap.set(act.id, { ...cur, id: act.id, color: prevColor, note: prevNote });
+                return;
+              }
+
+              if (act.op === "delete") {
+                const prev = act.prev;
+                if (!prev) return;
+
+                const res = await apiAddHighlight({
+                  rel_path: REL_PATH,
+                  start: prev.start,
+                  end: prev.end,
+                  color: prev.color || "#fff59d",
+                  text: (prev.text || "").trim(),
+                  content_hash: prev.content_hash || NOTE_HASH,
+                  note: (prev.note || "").trim()
+                });
+
+                const newId = res.id;
+                applyHighlightByOffsets(prev.start, prev.end, newId, prev.color || "#fff59d", prev.note || "");
+                hlMap.set(newId, { ...prev, id: newId });
+                return;
+              }
+            }catch(err){
+              alert("Undo 실패: " + (err.message || err));
+            }
+          }
+
+          document.addEventListener("keydown", (e) => {
+            const key = (e.key || "").toLowerCase();
+            const cmd = e.ctrlKey || e.metaKey;
+            if (!cmd || key !== "z" || e.shiftKey) return;
+            if (isTypingTarget(document.activeElement)) return;
+            e.preventDefault();
+            undoLast();
+          });
+
+        })();
+      </script>
+
+    {% elif text_content %}
+      <pre class="code-block">{{ text_content }}</pre>
+    {% else %}
+      <p>{{ unsupported_reason or "이 파일은 미리보기를 지원하지 않습니다." }}</p>
+    {% endif %}
+  </section>
+
+  {% if attachments or other_notes or recent_notes_panel or history_versions %}
+    <aside class="viewer-sidebar">
+      {% if recent_notes_panel %}
+        <h3>최근 열어본 노트</h3>
+        <ul class="other-notes">
+          {% for n in recent_notes_panel %}
+            <li>
+              <a href="{{ url_for('view_file') }}?rel_path={{ n.rel_path }}">
+                {{ n.name }}
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      {% if history_versions %}
+        {% if recent_notes_panel %}<hr>{% endif %}
+        <h3>이전 수정 히스토리</h3>
+        <ul class="other-notes">
+          {% for h in history_versions %}
+            <li style="margin-bottom: 6px;">
+              <div class="meta" style="margin-bottom: 2px;">
+                {{ h.saved_at }}
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <a href="{{ url_for('view_file') }}?rel_path={{ h.rel_path }}">보기</a>
+                <a class="meta" href="{{ url_for('download_file', rel_path=h.rel_path) }}">다운로드</a>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      {% if attachments %}
+        <h3>첨부 파일</h3>
+        <ul class="attachments-list">
+          {% for att in attachments %}
+            <li>
+              <a href="{{ url_for('download_file', rel_path=att.rel_path) }}">
+                {{ att.name }}
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      {% if other_notes %}
+        <hr>
+        <h3>같은 프로젝트의 다른 노트</h3>
+        <ul class="other-notes">
+          {% for note in other_notes %}
+            <li>
+              <a href="{{ url_for('view_file') }}?rel_path={{ note.rel_path }}">
+                {{ note.name }}
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </aside>
+  {% endif %}
+</div>
+
+{% endblock %}

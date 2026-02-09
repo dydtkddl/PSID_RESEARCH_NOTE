@@ -1,0 +1,243 @@
+﻿{% extends "base.html" %}
+
+{% block title %}편집: {{ document.title }} - Research Platform{% endblock %}
+
+{% block extra_head %}
+<script>
+MathJax = {
+    tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+    },
+    svg: { fontCache: 'global' }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+<link rel="stylesheet" href="{{ root_path }}/static/css/editor.css">
+{% endblock %}
+
+{% block breadcrumb %}
+<a href="{{ root_path }}/">홈</a>
+<i class="ri-arrow-right-s-line"></i>
+<a href="{{ root_path }}/workspaces/{{ document.workspace_id }}">워크스페이스</a>
+<i class="ri-arrow-right-s-line"></i>
+<a href="{{ root_path }}/documents/{{ document.id }}">{{ document.title }}</a>
+<i class="ri-arrow-right-s-line"></i>
+<span>편집</span>
+{% endblock %}
+
+{% block content %}
+<div class="editor-container" id="editor-container">
+    <!-- Editor Header -->
+    <header class="editor-header">
+        <div class="editor-title-wrapper">
+            <input type="text" class="editor-title-input" id="document-title" 
+                   value="{{ document.title }}" placeholder="제목 없음">
+        </div>
+        <div class="editor-actions">
+            <div class="save-status" id="save-status">
+                <i class="ri-check-line"></i>
+                <span>저장됨</span>
+            </div>
+            <button class="btn btn-ghost" id="preview-toggle">
+                <i class="ri-eye-line"></i>
+                <span>미리보기</span>
+            </button>
+            <button class="btn btn-primary" id="complete-btn" data-href="{{ root_path }}/documents/{{ document.id }}">
+                <i class="ri-check-line"></i>
+                <span>완료</span>
+            </button>
+        </div>
+    </header>
+    
+    <!-- Editor Toolbar -->
+    <div class="editor-toolbar">
+        <div class="toolbar-group">
+            <button class="toolbar-btn" data-action="bold" title="굵게 (Ctrl+B)">
+                <i class="ri-bold"></i>
+            </button>
+            <button class="toolbar-btn" data-action="italic" title="기울임 (Ctrl+I)">
+                <i class="ri-italic"></i>
+            </button>
+            <button class="toolbar-btn" data-action="strikethrough" title="취소선">
+                <i class="ri-strikethrough"></i>
+            </button>
+            <button class="toolbar-btn" data-action="code" title="인라인 코드">
+                <i class="ri-code-line"></i>
+            </button>
+        </div>
+        
+        <div class="toolbar-divider"></div>
+        
+        <div class="toolbar-group">
+            <button class="toolbar-btn" data-action="h1" title="제목 1">
+                <strong>H1</strong>
+            </button>
+            <button class="toolbar-btn" data-action="h2" title="제목 2">
+                <strong>H2</strong>
+            </button>
+            <button class="toolbar-btn" data-action="h3" title="제목 3">
+                <strong>H3</strong>
+            </button>
+        </div>
+        
+        <div class="toolbar-divider"></div>
+        
+        <div class="toolbar-group">
+            <button class="toolbar-btn" data-action="ul" title="순서 없는 목록">
+                <i class="ri-list-unordered"></i>
+            </button>
+            <button class="toolbar-btn" data-action="ol" title="순서 있는 목록">
+                <i class="ri-list-ordered"></i>
+            </button>
+            <button class="toolbar-btn" data-action="task" title="체크 목록">
+                <i class="ri-checkbox-line"></i>
+            </button>
+            <button class="toolbar-btn" data-action="quote" title="인용">
+                <i class="ri-double-quotes-l"></i>
+            </button>
+        </div>
+        
+        <div class="toolbar-divider"></div>
+        
+        <div class="toolbar-group">
+            <button class="toolbar-btn" data-action="link" title="링크 (Ctrl+K)">
+                <i class="ri-link"></i>
+            </button>
+            <button class="toolbar-btn" data-action="image" title="이미지">
+                <i class="ri-image-line"></i>
+            </button>
+            <button class="toolbar-btn" data-action="table" title="표">
+                <i class="ri-table-line"></i>
+            </button>
+            <button class="toolbar-btn" data-action="codeblock" title="코드 블록">
+                <i class="ri-code-box-line"></i>
+            </button>
+        </div>
+        
+        <div class="toolbar-divider"></div>
+        
+        <div class="toolbar-group">
+            <button class="toolbar-btn" data-action="math" title="수식">
+                <span style="font-family: serif; font-style: italic;">∑</span>
+            </button>
+            <button class="toolbar-btn" data-action="hr" title="구분선">
+                <i class="ri-separator"></i>
+            </button>
+        </div>
+        
+        <div class="toolbar-spacer"></div>
+        
+        <div class="toolbar-group">
+            <button class="toolbar-btn" data-action="undo" title="실행 취소 (Ctrl+Z)">
+                <i class="ri-arrow-go-back-line"></i>
+            </button>
+            <button class="toolbar-btn" data-action="redo" title="다시 실행 (Ctrl+Shift+Z)">
+                <i class="ri-arrow-go-forward-line"></i>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Editor Main Area -->
+    <div class="editor-main" id="editor-main">
+        <!-- Editor Pane -->
+        <div class="editor-pane" id="editor-pane">
+            <textarea id="markdown-editor" placeholder="마크다운으로 문서를 작성하세요...">{{ document.content }}</textarea>
+        </div>
+        
+        <!-- Preview Pane -->
+        <div class="preview-pane" id="preview-pane">
+            <div class="preview-header">
+                <span>미리보기</span>
+            </div>
+            <div class="preview-content markdown-body" id="preview-content">
+                {{ document.content_html | safe }}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Editor Footer -->
+    <footer class="editor-footer">
+        <div class="footer-left">
+            <span class="word-count">
+                <i class="ri-text"></i>
+                <span id="word-count">0</span> 단어
+            </span>
+            <span class="char-count">
+                <i class="ri-character-recognition-line"></i>
+                <span id="char-count">0</span> 글자
+            </span>
+        </div>
+        <div class="footer-right">
+            <span class="cursor-position">
+                줄 <span id="line-num">1</span>, 열 <span id="col-num">1</span>
+            </span>
+        </div>
+    </footer>
+</div>
+
+<!-- Image Upload Modal -->
+<div class="modal" id="image-modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>이미지 삽입</h3>
+            <button class="modal-close" id="close-image-modal">
+                <i class="ri-close-line"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="upload-zone" id="upload-zone">
+                <i class="ri-upload-cloud-line"></i>
+                <p>이미지를 드래그하거나 클릭하여 업로드</p>
+                <input type="file" id="image-upload" accept="image/*" hidden>
+            </div>
+            <div class="upload-divider">또는</div>
+            <div class="form-group">
+                <label for="image-url">이미지 URL</label>
+                <input type="url" id="image-url" placeholder="https://example.com/image.png">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="cancel-image">취소</button>
+            <button class="btn btn-primary" id="insert-image">삽입</button>
+        </div>
+    </div>
+</div>
+
+<!-- Link Modal -->
+<div class="modal" id="link-modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-sm">
+        <div class="modal-header">
+            <h3>링크 삽입</h3>
+            <button class="modal-close" id="close-link-modal">
+                <i class="ri-close-line"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="link-text">텍스트</label>
+                <input type="text" id="link-text" placeholder="링크 텍스트">
+            </div>
+            <div class="form-group">
+                <label for="link-url">URL</label>
+                <input type="url" id="link-url" placeholder="https://example.com">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="cancel-link">취소</button>
+            <button class="btn btn-primary" id="insert-link">삽입</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const DOCUMENT_ID = "{{ document.id }}";
+</script>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ root_path }}/static/js/editor.js"></script>
+{% endblock %}
+

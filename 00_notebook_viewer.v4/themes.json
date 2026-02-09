@@ -1,0 +1,20 @@
+{
+  "올리고머_IL": {
+    "card_bg": "#f4dcdc",
+    "card_border": "#050505",
+    "accent": "#1148ee",
+    "header_bg": "#ff0000"
+  },
+  "Isotherm데이터베이스": {
+    "card_bg": "#89e37d",
+    "card_border": "#292828",
+    "accent": "#1f7aec",
+    "header_bg": "#222222"
+  },
+  "KHU_챗봇": {
+    "card_bg": "#ffff00",
+    "card_border": "#0000ff",
+    "accent": "#ffff00",
+    "header_bg": "#222222"
+  }
+}

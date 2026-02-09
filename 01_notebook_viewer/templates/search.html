@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>전역 검색</h2>
+
+<form method="get" action="{{ url_for('global_search') }}" class="note-filter-form">
+  <label>
+    검색어
+    <input type="text"
+           name="q"
+           value="{{ q }}"
+           placeholder="예: DFT tag:MOF status:in-progress">
+  </label>
+  <button type="submit" class="btn">검색</button>
+  <p class="meta">
+    DSL 예시:
+    <code>tag:DFT</code>,
+    <code>status:done</code>,
+    <code>DFT IL tag:MD</code> (띄어쓰기로 AND)
+  </p>
+</form>
+
+{% if q %}
+  <p class="meta">
+    "{{ q }}" 검색 결과: {{ total }}개
+  </p>
+{% endif %}
+
+{% if results %}
+  <ul class="search-results">
+    {% for r in results %}
+      <li class="search-result-item">
+        <div class="search-result-title">
+          <a href="{{ url_for('view_file') }}?rel_path={{ r.rel_path }}">
+            {{ r.name }}
+          </a>
+        </div>
+        <div class="search-result-path meta">
+          {{ r.rel_path }} · {{ r.modified }}
+        </div>
+        {% if r.tags or r.status %}
+          <div class="search-result-meta meta">
+            {% if r.tags %}
+              태그:
+              {% for t in r.tags %}
+                <span class="tag">#{{ t }}</span>
+              {% endfor %}
+            {% endif %}
+            {% if r.status %}
+              · 상태: {{ r.status }}
+            {% endif %}
+          </div>
+        {% endif %}
+        {% if r.snippet_html %}
+          <div class="search-result-snippet">
+            {{ r.snippet_html | safe }} …
+          </div>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+
+  {% if total_pages > 1 %}
+    <div class="pagination">
+      {% if page > 1 %}
+        <a class="page-link"
+           href="{{ url_for('global_search',
+                            q=q,
+                            page=page-1,
+                            page_size=page_size) }}">
+          ‹ 이전
+        </a>
+      {% endif %}
+
+      {% for p in range(1, total_pages + 1) %}
+        {% if p == page %}
+          <span class="page-link current">{{ p }}</span>
+        {% else %}
+          <a class="page-link"
+             href="{{ url_for('global_search',
+                              q=q,
+                              page=p,
+                              page_size=page_size) }}">
+            {{ p }}
+          </a>
+        {% endif %}
+      {% endfor %}
+
+      {% if page < total_pages %}
+        <a class="page-link"
+           href="{{ url_for('global_search',
+                            q=q,
+                            page=page+1,
+                            page_size=page_size) }}">
+          다음 ›
+        </a>
+      {% endif %}
+    </div>
+  {% endif %}
+{% elif q %}
+  <p>검색 결과가 없습니다.</p>
+{% endif %}
+
+{% endblock %}

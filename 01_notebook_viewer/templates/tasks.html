@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>TODO / Task 모아보기</h2>
+
+<form method="get" action="{{ url_for('tasks_view') }}" class="note-filter-form">
+  <label>
+    완료된 작업도 포함
+    <input type="checkbox" name="include_done" value="true"
+           {% if include_done %}checked{% endif %}
+           onchange="this.form.submit()">
+  </label>
+</form>
+
+{% if files %}
+  {% for f in files %}
+    <section class="task-file">
+      <h3>
+        <a href="{{ url_for('view_file') }}?rel_path={{ f.rel_path }}">
+          {{ f.name }}
+        </a>
+      </h3>
+      <p class="meta">{{ f.rel_path }}</p>
+      <ul class="task-list">
+        {% for t in f.tasks %}
+          <li class="task-item">
+            {% if t.done %}
+              [x]
+            {% else %}
+              [ ]
+            {% endif %}
+            (L{{ t.line_no }}) {{ t.text }}
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+    <hr>
+  {% endfor %}
+{% else %}
+  <p>현재 조건에 해당하는 TODO 항목이 없습니다.</p>
+{% endif %}
+
+{% endblock %}

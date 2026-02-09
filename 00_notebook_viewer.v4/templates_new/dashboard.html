@@ -1,0 +1,206 @@
+﻿{% extends "base.html" %}
+
+{% block title %}대시보드 - Research Platform{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <!-- Welcome Section -->
+    <section class="dashboard-welcome">
+        <div class="welcome-content">
+            <h1>안녕하세요, {{ user.display_name }}님! 👋</h1>
+            <p>오늘도 연구에 집중할 준비가 되셨나요?</p>
+        </div>
+        <div class="welcome-actions">
+            <button class="btn btn-primary" id="new-doc-btn">
+                <i class="ri-add-line"></i>
+                <span>새 문서</span>
+            </button>
+            <button class="btn btn-ghost" id="import-btn">
+                <i class="ri-upload-2-line"></i>
+                <span>가져오기</span>
+            </button>
+        </div>
+    </section>
+    
+    <!-- Stats Cards -->
+    <section class="dashboard-stats">
+        <div class="stat-card">
+            <div class="stat-icon" style="--stat-color: var(--accent-primary);">
+                <i class="ri-file-text-line"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value" id="stat-documents">-</div>
+                <div class="stat-label">총 문서</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="--stat-color: var(--accent-success);">
+                <i class="ri-folder-line"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value" id="stat-workspaces">-</div>
+                <div class="stat-label">워크스페이스</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="--stat-color: var(--accent-warning);">
+                <i class="ri-star-line"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value" id="stat-favorites">-</div>
+                <div class="stat-label">즐겨찾기</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="--stat-color: var(--accent-info);">
+                <i class="ri-team-line"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value" id="stat-collaborators">-</div>
+                <div class="stat-label">협업자</div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Main Content Grid -->
+    <div class="dashboard-grid">
+        <!-- Recent Documents -->
+        <section class="dashboard-section recent-documents">
+            <div class="section-header">
+                <h2><i class="ri-time-line"></i> 최근 문서</h2>
+                <a href="{{ root_path }}/recent" class="section-link">모두 보기 <i class="ri-arrow-right-s-line"></i></a>
+            </div>
+            <div class="document-list" id="recent-documents">
+                <div class="loading-skeleton">
+                    <div class="skeleton-item"></div>
+                    <div class="skeleton-item"></div>
+                    <div class="skeleton-item"></div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Favorites -->
+        <section class="dashboard-section favorites">
+            <div class="section-header">
+                <h2><i class="ri-star-line"></i> 즐겨찾기</h2>
+                <a href="{{ root_path }}/favorites" class="section-link">모두 보기 <i class="ri-arrow-right-s-line"></i></a>
+            </div>
+            <div class="document-list" id="favorite-documents">
+                <div class="loading-skeleton">
+                    <div class="skeleton-item"></div>
+                    <div class="skeleton-item"></div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Activity Feed -->
+        <section class="dashboard-section activity">
+            <div class="section-header">
+                <h2><i class="ri-pulse-line"></i> 활동</h2>
+            </div>
+            <div class="activity-feed" id="activity-feed">
+                <div class="loading-skeleton">
+                    <div class="skeleton-item small"></div>
+                    <div class="skeleton-item small"></div>
+                    <div class="skeleton-item small"></div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Quick Links -->
+        <section class="dashboard-section quick-links">
+            <div class="section-header">
+                <h2><i class="ri-flashlight-line"></i> 빠른 링크</h2>
+            </div>
+            <div class="quick-link-grid">
+                <a href="{{ root_path }}/help#writing-guide" class="quick-link-item">
+                    <i class="ri-book-open-line"></i>
+                    <span>문서 작성 가이드</span>
+                </a>
+                <a href="{{ root_path }}/help#shortcuts" class="quick-link-item">
+                    <i class="ri-keyboard-line"></i>
+                    <span>단축키</span>
+                </a>
+                <a href="{{ root_path }}/help" class="quick-link-item">
+                    <i class="ri-question-line"></i>
+                    <span>도움말</span>
+                </a>
+                <a href="{{ root_path }}/help#feedback" class="quick-link-item">
+                    <i class="ri-feedback-line"></i>
+                    <span>피드백</span>
+                </a>
+            </div>
+        </section>
+    </div>
+</div>
+
+<!-- New Document Modal -->
+<div class="modal" id="new-doc-modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>새 문서 만들기</h3>
+            <button class="modal-close" id="close-new-doc-modal">
+                <i class="ri-close-line"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <form id="new-doc-form">
+                <div class="form-group">
+                    <label for="doc-title">제목</label>
+                    <input type="text" id="doc-title" placeholder="문서 제목을 입력하세요" required>
+                </div>
+                <div class="form-group">
+                    <label for="doc-workspace">워크스페이스</label>
+                    <select id="doc-workspace" required>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>템플릿</label>
+                    <div class="template-grid">
+                        <label class="template-option selected">
+                            <input type="radio" name="template" value="blank" checked>
+                            <div class="template-card">
+                                <i class="ri-file-line"></i>
+                                <span>빈 문서</span>
+                            </div>
+                        </label>
+                        <label class="template-option">
+                            <input type="radio" name="template" value="meeting">
+                            <div class="template-card">
+                                <i class="ri-calendar-event-line"></i>
+                                <span>회의록</span>
+                            </div>
+                        </label>
+                        <label class="template-option">
+                            <input type="radio" name="template" value="experiment">
+                            <div class="template-card">
+                                <i class="ri-flask-line"></i>
+                                <span>실험 노트</span>
+                            </div>
+                        </label>
+                        <label class="template-option">
+                            <input type="radio" name="template" value="report">
+                            <div class="template-card">
+                                <i class="ri-file-chart-line"></i>
+                                <span>보고서</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-ghost" id="cancel-new-doc">취소</button>
+            <button type="submit" form="new-doc-form" class="btn btn-primary">
+                <i class="ri-add-line"></i>
+                <span>만들기</span>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ root_path }}/static/js/dashboard.js"></script>
+{% endblock %}

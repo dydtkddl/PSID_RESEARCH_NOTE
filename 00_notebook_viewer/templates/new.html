@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="project-header"
+     style="--accent-color: {{ theme.accent }};">
+  <div>
+    <h2>새 문서 생성 ({{ project_name }})</h2>
+    <p class="meta">프로젝트 경로: {{ project_rel_path }}</p>
+  </div>
+  <div class="project-header-actions">
+    <a class="btn-secondary"
+       href="{{ url_for('project_view') }}?rel_path={{ project_rel_path }}">
+      ← 프로젝트 목록으로
+    </a>
+  </div>
+</div>
+
+<form method="post"
+      action="{{ url_for('new_file') }}"
+      class="editor-form">
+  <input type="hidden" name="project_rel_path" value="{{ project_rel_path }}">
+
+  <div class="settings-row">
+    <label for="title">파일 제목</label>
+    <input id="title"
+           type="text"
+           name="title"
+           placeholder="예: 20251211.논문리뷰.Ab Initio Force Fields..."
+           style="flex: 1; padding: 4px 8px;">
+  </div>
+
+  <div class="settings-row">
+    <label for="template-select">템플릿</label>
+    <select id="template-select">
+      <option value="">(템플릿 없음)</option>
+      {% for tpl in note_templates %}
+        <option value="{{ tpl.file_name }}">{{ tpl.name }}</option>
+      {% endfor %}
+    </select>
+    <span class="meta">note_templates/*.md 파일을 템플릿으로 사용</span>
+  </div>
+
+  <div class="editor-split">
+    <div class="editor-pane">
+      <label for="new-editor">Markdown 내용</label>
+      <textarea id="new-editor"
+                name="content"
+                class="editor-textarea"
+                spellcheck="false"></textarea>
+      <p class="meta">
+        ● 아래 텍스트 영역에서 Ctrl+V로 이미지 붙여넣기 →  
+        <code>{{ project_rel_path }}/_images</code> 폴더에 저장 +  
+        <code>![...](...)</code> 자동 삽입
+      </p>
+    </div>
+    <div class="preview-pane">
+      <div class="preview-header">미리보기</div>
+      <div id="new-preview" class="markdown-body preview-body">
+        <p class="meta">내용을 입력하면 실시간으로 렌더링됩니다.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="editor-actions">
+    <button type="submit" class="btn">생성</button>
+    <button type="button" class="btn-secondary" onclick="window.history.back()">취소</button>
+  </div>
+</form>
+
+<script>
+  const newEditor = document.getElementById('new-editor');
+  const newPreview = document.getElementById('new-preview');
+  const imageBaseDirNew = "{{ project_rel_path }}";
+  const uploadUrlNew = "{{ url_for('upload_image') }}";
+  const templateSelect = document.getElementById('template-select');
+  const templateApi = "{{ url_for('note_template_content') }}";
+
+  function insertAtCursorNew(textarea, text) {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const value = textarea.value;
+    textarea.value = value.substring(0, start) + text + value.substring(end);
+    const pos = start + text.length;
+    textarea.selectionStart = textarea.selectionEnd = pos;
+    textarea.focus();
+  }
+
+  // 이미지 붙여넣기
+  newEditor.addEventListener('paste', function (e) {
+    const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (item.type && item.type.indexOf('image') !== -1) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('base_rel_dir', imageBaseDirNew);
+        formData.append('image', file);
+
+        fetch(uploadUrlNew, {
+          method: 'POST',
+          body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.ok && data.md_path) {
+            const md = `![pasted image](${data.md_path})\n`;
+            insertAtCursorNew(newEditor, md);
+            triggerPreviewUpdateNew();
+          } else {
+            alert('이미지 업로드에 실패했습니다.');
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          alert('이미지 업로드 중 오류가 발생했습니다.');
+        });
+
+        break;
+      }
+    }
+  });
+
+  // 템플릿 선택 → 내용 로드
+  templateSelect.addEventListener('change', function () {
+    const fileName = templateSelect.value;
+    if (!fileName) return;
+    fetch(`${templateApi}?name=${encodeURIComponent(fileName)}`)
+      .then(res => {
+        if (!res.ok) throw new Error('템플릿을 불러오지 못했습니다.');
+        return res.text();
+      })
+      .then(text => {
+        newEditor.value = text;
+        triggerPreviewUpdateNew();
+      })
+      .catch(err => {
+        console.error(err);
+        alert('템플릿 불러오기 중 오류가 발생했습니다.');
+      });
+  });
+
+  // 라이브 프리뷰
+  let previewTimerNew = null;
+  function triggerPreviewUpdateNew() {
+    clearTimeout(previewTimerNew);
+    previewTimerNew = setTimeout(function () {
+      fetch("{{ url_for('render_preview') }}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markdown: newEditor.value || "" })
+      })
+      .then(res => res.json())
+      .then(data => {
+        newPreview.innerHTML = data.html || "";
+      })
+      .catch(err => {
+        console.error(err);
+      });
+    }, 300);
+  }
+
+  newEditor.addEventListener('input', triggerPreviewUpdateNew);
+
+  // Ctrl+S → 폼 제출
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      const form = document.querySelector('.editor-form');
+      if (form) form.submit();
+    }
+  });
+</script>
+
+{% endblock %}

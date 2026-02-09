@@ -1,0 +1,202 @@
+2025-12-12 04:14:08,350 [INFO] notebook_viewer - ==== Notebook Viewer starting (Nginx /research mode) ====
+2025-12-12 04:14:08,350 [INFO] notebook_viewer - ROOT_DIR: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+2025-12-12 04:14:08,351 [INFO] notebook_viewer - Markdown extensions: extra, tables, fenced_code, codehilite, toc, admonition, sane_lists, smarty, nl2br, meta, footnotes, pymdownx.superfences, pymdownx.tasklist, pymdownx.tilde, pymdownx.highlight, pymdownx.emoji, pymdownx.arithmatex
+2025-12-12 04:14:25,860 [INFO] notebook_viewer - ==== Notebook Viewer starting (Nginx /research mode) ====
+2025-12-12 04:14:25,861 [INFO] notebook_viewer - ROOT_DIR: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+2025-12-12 04:14:25,861 [INFO] notebook_viewer - Markdown extensions: extra, tables, fenced_code, codehilite, toc, admonition, sane_lists, smarty, nl2br, meta, footnotes, pymdownx.superfences, pymdownx.tasklist, pymdownx.tilde, pymdownx.highlight, pymdownx.emoji, pymdownx.arithmatex
+2025-12-12 04:14:25,966 [INFO] notebook_viewer - Starting server on 0.0.0.0:8151
+2025-12-12 04:14:27,319 [INFO] notebook_viewer - ==== Notebook Viewer starting (Nginx /research mode) ====
+2025-12-12 04:14:27,319 [INFO] notebook_viewer - ROOT_DIR: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+2025-12-12 04:14:27,319 [INFO] notebook_viewer - Markdown extensions: extra, tables, fenced_code, codehilite, toc, admonition, sane_lists, smarty, nl2br, meta, footnotes, pymdownx.superfences, pymdownx.tasklist, pymdownx.tilde, pymdownx.highlight, pymdownx.emoji, pymdownx.arithmatex
+2025-12-12 04:14:42,095 [INFO] notebook_viewer - ==== Notebook Viewer starting (Nginx /research mode) ====
+2025-12-12 04:14:42,096 [INFO] notebook_viewer - ROOT_DIR: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+2025-12-12 04:14:42,096 [INFO] notebook_viewer - Markdown extensions: extra, tables, fenced_code, codehilite, toc, admonition, sane_lists, smarty, nl2br, meta, footnotes, pymdownx.superfences, pymdownx.tasklist, pymdownx.tilde, pymdownx.highlight, pymdownx.emoji, pymdownx.arithmatex
+2025-12-12 04:14:42,190 [INFO] notebook_viewer - Starting server on 0.0.0.0:8151
+2025-12-12 04:14:43,329 [INFO] notebook_viewer - ==== Notebook Viewer starting (Nginx /research mode) ====
+2025-12-12 04:14:43,330 [INFO] notebook_viewer - ROOT_DIR: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+2025-12-12 04:14:43,330 [INFO] notebook_viewer - Markdown extensions: extra, tables, fenced_code, codehilite, toc, admonition, sane_lists, smarty, nl2br, meta, footnotes, pymdownx.superfences, pymdownx.tasklist, pymdownx.tilde, pymdownx.highlight, pymdownx.emoji, pymdownx.arithmatex
+2025-12-12 04:14:43,471 [INFO] notebook_viewer - ==== Notebook Viewer starting (Nginx /research mode) ====
+2025-12-12 04:14:43,471 [INFO] notebook_viewer - ROOT_DIR: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+2025-12-12 04:14:43,472 [INFO] notebook_viewer - Markdown extensions: extra, tables, fenced_code, codehilite, toc, admonition, sane_lists, smarty, nl2br, meta, footnotes, pymdownx.superfences, pymdownx.tasklist, pymdownx.tilde, pymdownx.highlight, pymdownx.emoji, pymdownx.arithmatex
+2025-12-12 04:14:59,260 [INFO] notebook_viewer - GET / - index (project list)
+2025-12-12 04:14:59,268 [INFO] notebook_viewer - Found 12 projects
+2025-12-12 04:14:59,304 [ERROR] notebook_viewer - Unhandled error: No route exists for name "global_search" and params "".
+Traceback (most recent call last):
+  File "C:\Users\PSID_PC_20\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\middleware\errors.py", line 162, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\PSID_PC_20\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\middleware\exceptions.py", line 79, in __call__
+    raise exc
+  File "C:\Users\PSID_PC_20\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\PSID_PC_20\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\middleware\asyncexitstack.py", line 20, in __call__
+    raise e
+  File "C:\Users\PSID_PC_20\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\middleware\asyncexitstack.py", line 17, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\PSID_PC_20\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\routing.py", line 718, in __call__
+    await route.handle(scope, receive, send)
+  File "C:\Users\PSID_PC_20\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\PSID_PC_20\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\routing.py", line 66, in app
+    response = await func(request)
+  File "C:\Users\PSID_PC_20\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\routing.py", line 274, in app
+    raw_response = await run_endpoint_function(
+  File "C:\Users\PSID_PC_20\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\routing.py", line 191, in run_endpoint_function
+    return await dependant.call(**values)
+  File "C:\Users\PSID_PC_20\Desktop\Reseach_Note\01_notebook_viewer\main.py", line 468, in index
+    return templates.TemplateResponse(
+  File "C:\Users\PSID_PC_20\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\templating.py", line 113, in TemplateResponse
+    return _TemplateResponse(
+  File "C:\Users\PSID_PC_20\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\templating.py", line 39, in __init__
+    content = template.render(context)
+  File "C:\Users\PSID_PC_20\anaconda3\envs\notebook_viewer\lib\site-packages\jinja2\environment.py", line 1301, in render
+    self.environment.handle_exception()
+  File "C:\Users\PSID_PC_20\anaconda3\envs\notebook_viewer\lib\site-packages\jinja2\environment.py", line 936, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "templates\index.html", line 1, in top-level template code
+    {% extends "base.html" %}
+  File "templates\base.html", line 48, in top-level template code
+    <a href="{{ url_for('global_search') }}">🔍 전역 검색</a>
+  File "C:\Users\PSID_PC_20\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\templating.py", line 83, in url_for
+    return request.url_for(name, **path_params)
+  File "C:\Users\PSID_PC_20\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\requests.py", line 178, in url_for
+    url_path = router.url_path_for(__name, **path_params)
+  File "C:\Users\PSID_PC_20\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\routing.py", line 646, in url_path_for
+    raise NoMatchFound(__name, path_params)
+starlette.routing.NoMatchFound: No route exists for name "global_search" and params "".
+2025-12-12 04:14:59,483 [ERROR] notebook_viewer - HTTP 404: Not Found
+2026-02-09 10:39:00,095 [INFO] notebook_viewer - ==== Notebook Viewer starting (Nginx /research mode) ====
+2026-02-09 10:39:00,096 [INFO] notebook_viewer - ROOT_DIR: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+2026-02-09 10:39:00,096 [INFO] notebook_viewer - Markdown extensions: extra, tables, fenced_code, codehilite, toc, admonition, sane_lists, smarty, nl2br, meta, footnotes, pymdownx.superfences, pymdownx.tasklist, pymdownx.tilde, pymdownx.highlight, pymdownx.emoji, pymdownx.arithmatex
+2026-02-09 10:39:00,155 [INFO] notebook_viewer - Starting server on 0.0.0.0:8151
+2026-02-09 10:39:00,510 [INFO] notebook_viewer - ==== Notebook Viewer starting (Nginx /research mode) ====
+2026-02-09 10:39:00,511 [INFO] notebook_viewer - ROOT_DIR: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+2026-02-09 10:39:00,511 [INFO] notebook_viewer - Markdown extensions: extra, tables, fenced_code, codehilite, toc, admonition, sane_lists, smarty, nl2br, meta, footnotes, pymdownx.superfences, pymdownx.tasklist, pymdownx.tilde, pymdownx.highlight, pymdownx.emoji, pymdownx.arithmatex
+2026-02-09 10:39:00,604 [INFO] notebook_viewer - ==== Notebook Viewer starting (Nginx /research mode) ====
+2026-02-09 10:39:00,604 [INFO] notebook_viewer - ROOT_DIR: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+2026-02-09 10:39:00,604 [INFO] notebook_viewer - Markdown extensions: extra, tables, fenced_code, codehilite, toc, admonition, sane_lists, smarty, nl2br, meta, footnotes, pymdownx.superfences, pymdownx.tasklist, pymdownx.tilde, pymdownx.highlight, pymdownx.emoji, pymdownx.arithmatex
+2026-02-09 10:39:00,853 [ERROR] notebook_viewer - HTTP 404: Not Found
+2026-02-09 10:39:01,449 [ERROR] notebook_viewer - HTTP 404: Not Found
+2026-02-09 10:39:01,700 [ERROR] notebook_viewer - HTTP 404: Not Found
+2026-02-09 10:39:01,829 [ERROR] notebook_viewer - HTTP 404: Not Found
+2026-02-09 10:39:01,997 [ERROR] notebook_viewer - HTTP 404: Not Found
+2026-02-09 10:39:03,955 [INFO] notebook_viewer - GET / - index (project list)
+2026-02-09 10:39:03,955 [ERROR] notebook_viewer - Root directory does not exist: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+2026-02-09 10:39:03,955 [ERROR] notebook_viewer - Unhandled error: Root directory not found: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+Traceback (most recent call last):
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\routing.py", line 115, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\routing.py", line 101, in app
+    response = await f(request)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\routing.py", line 355, in app
+    raw_response = await run_endpoint_function(
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\routing.py", line 243, in run_endpoint_function
+    return await dependant.call(**values)
+  File "C:\Users\user\Desktop\Reseach_Note\01_notebook_viewer\main.py", line 431, in index
+    projects = get_project_list()
+  File "C:\Users\user\Desktop\Reseach_Note\01_notebook_viewer\main.py", line 268, in get_project_list
+    raise FileNotFoundError(f"Root directory not found: {ROOT_DIR}")
+FileNotFoundError: Root directory not found: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+2026-02-09 10:39:07,845 [INFO] notebook_viewer - GET / - index (project list)
+2026-02-09 10:39:07,846 [ERROR] notebook_viewer - Root directory does not exist: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+2026-02-09 10:39:07,846 [ERROR] notebook_viewer - Unhandled error: Root directory not found: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+Traceback (most recent call last):
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\routing.py", line 115, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\routing.py", line 101, in app
+    response = await f(request)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\routing.py", line 355, in app
+    raw_response = await run_endpoint_function(
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\routing.py", line 243, in run_endpoint_function
+    return await dependant.call(**values)
+  File "C:\Users\user\Desktop\Reseach_Note\01_notebook_viewer\main.py", line 431, in index
+    projects = get_project_list()
+  File "C:\Users\user\Desktop\Reseach_Note\01_notebook_viewer\main.py", line 268, in get_project_list
+    raise FileNotFoundError(f"Root directory not found: {ROOT_DIR}")
+FileNotFoundError: Root directory not found: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+2026-02-09 10:46:20,940 [INFO] notebook_viewer - ==== Notebook Viewer starting (Nginx /research mode) ====
+2026-02-09 10:46:20,940 [INFO] notebook_viewer - ROOT_DIR: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+2026-02-09 10:46:20,940 [INFO] notebook_viewer - Markdown extensions: extra, tables, fenced_code, codehilite, toc, admonition, sane_lists, smarty, nl2br, meta, footnotes, pymdownx.superfences, pymdownx.tasklist, pymdownx.tilde, pymdownx.highlight, pymdownx.emoji, pymdownx.arithmatex
+2026-02-09 10:46:21,006 [INFO] notebook_viewer - Starting server on 0.0.0.0:8151
+2026-02-09 10:46:21,357 [INFO] notebook_viewer - ==== Notebook Viewer starting (Nginx /research mode) ====
+2026-02-09 10:46:21,357 [INFO] notebook_viewer - ROOT_DIR: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+2026-02-09 10:46:21,357 [INFO] notebook_viewer - Markdown extensions: extra, tables, fenced_code, codehilite, toc, admonition, sane_lists, smarty, nl2br, meta, footnotes, pymdownx.superfences, pymdownx.tasklist, pymdownx.tilde, pymdownx.highlight, pymdownx.emoji, pymdownx.arithmatex
+2026-02-09 10:46:21,440 [INFO] notebook_viewer - ==== Notebook Viewer starting (Nginx /research mode) ====
+2026-02-09 10:46:21,440 [INFO] notebook_viewer - ROOT_DIR: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+2026-02-09 10:46:21,441 [INFO] notebook_viewer - Markdown extensions: extra, tables, fenced_code, codehilite, toc, admonition, sane_lists, smarty, nl2br, meta, footnotes, pymdownx.superfences, pymdownx.tasklist, pymdownx.tilde, pymdownx.highlight, pymdownx.emoji, pymdownx.arithmatex
+2026-02-09 10:46:39,180 [INFO] notebook_viewer - GET / - index (project list)
+2026-02-09 10:46:39,180 [ERROR] notebook_viewer - Root directory does not exist: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+2026-02-09 10:46:39,180 [ERROR] notebook_viewer - Unhandled error: Root directory not found: C:\Users\PSID_PC_20\Desktop\Reseach_Note
+Traceback (most recent call last):
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\routing.py", line 115, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\routing.py", line 101, in app
+    response = await f(request)
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\routing.py", line 355, in app
+    raw_response = await run_endpoint_function(
+  File "C:\Users\user\anaconda3\envs\notebook_viewer\lib\site-packages\fastapi\routing.py", line 243, in run_endpoint_function
+    return await dependant.call(**values)
+  File "C:\Users\user\Desktop\Reseach_Note\01_notebook_viewer\main.py", line 431, in index
+    projects = get_project_list()
+  File "C:\Users\user\Desktop\Reseach_Note\01_notebook_viewer\main.py", line 268, in get_project_list
+    raise FileNotFoundError(f"Root directory not found: {ROOT_DIR}")
+FileNotFoundError: Root directory not found: C:\Users\PSID_PC_20\Desktop\Reseach_Note

@@ -1,0 +1,52 @@
+﻿python : INFO:     Started se
+rver process [79476]
+위치 줄:1 문자:1
++ python -m uvicorn app.main:
+app --port 8000 2>&1 | Out-Fi
+le -FilePath  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo           
+   : NotSpecified: (INFO:    
+     Started server proces   
+ s [79476]:String) [], Re    
+moteException
+    + FullyQualifiedErrorId  
+   : NativeCommandError
+ 
+INFO:     Waiting for applica
+tion startup.
+ERROR:    Traceback (most rec
+ent call last):
+  File "C:\Users\user\anacond
+a3\Lib\site-packages\starlett
+e\routing.py", line 738, in l
+ifespan
+    async with self.lifespan_
+context(app) as maybe_state:
+               ~~~~~~~~~~~~~~
+~~~~~~~^^^^^
+  File "C:\Users\user\anacond
+a3\Lib\contextlib.py", line 2
+14, in __aenter__
+    return await anext(self.g
+en)
+           ^^^^^^^^^^^^^^^^^^
+^^^
+  File "C:\Users\user\Desktop
+\Reseach_Note\00_notebook_vie
+wer.v4\app\main.py", line 37,
+ in lifespan
+    print(f"\U0001f680 Resear
+ch Platform v{settings.APP_VE
+RSION} starting...")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+UnicodeEncodeError: 'cp949' c
+odec can't encode character '
+\U0001f680' in position 0: il
+legal multibyte sequence
+
+ERROR:    Application startup
+ failed. Exiting.

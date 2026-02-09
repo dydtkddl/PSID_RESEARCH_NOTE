@@ -1,0 +1,2680 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import unicodedata
+from urllib.parse import quote
+from pathlib import Path
+from typing import Dict, Any, List, Optional, Tuple, Set
+import os
+import json
+import logging
+from datetime import datetime
+import html
+import io
+import zipfile
+import re
+import shutil
+# ======= PDF 변환(옵션) =======
+import tempfile
+import sys
+from starlette.background import BackgroundTask
+import uuid
+import hashlib
+from threading import Lock
+from fastapi.responses import JSONResponse
+import tempfile
+import time
+from starlette.background import BackgroundTask
+
+try:
+    from markdown_pdf import MarkdownPdf, Section  # pip install markdown-pdf
+except Exception:
+    MarkdownPdf = None
+    Section = None
+from fastapi import (
+    FastAPI,
+    Request,
+    HTTPException,
+    Query,
+    Form,
+    UploadFile,
+    File,
+    Body,
+)
+from fastapi.responses import (
+    HTMLResponse,
+    FileResponse,
+    RedirectResponse,
+    StreamingResponse,
+    PlainTextResponse,
+)
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.sessions import SessionMiddleware
+
+from tqdm import tqdm
+import markdown as md_lib  # pip install markdown
+
+try:
+    from docx import Document  # type: ignore
+except ImportError:
+    Document = None
+
+try:
+    import yaml  # type: ignore
+except ImportError:
+    yaml = None
+
+# ======= 기본 설정 =======
+
+ROOT_DIR = Path(r"C:\Users\PSID_PC_20\Desktop\Reseach_Note").expanduser().resolve()
+LOG_FILE = "notebook_viewer.log"
+THEME_CONFIG_PATH = Path("themes.json")
+FAVORITES_FILE = Path("favorites.json")
+RECENTS_FILE = Path("recents.json")
+PROJECT_ORDER_FILE = Path("project_order.json")
+CONFIG_PATH = Path("config.json")
+HIGHLIGHTS_FILE = Path("highlights.json")
+_HL_LOCK = Lock()
+
+_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}){1,2}$")
+
+def _sanitize_color(color: str) -> str:
+    c = (color or "").strip()
+    if _COLOR_RE.match(c):
+        return c.lower()
+    return "#fff59d"  # default: 연노랑
+
+def _load_highlights_store() -> Dict[str, Any]:
+    with _HL_LOCK:
+        return load_json_file(HIGHLIGHTS_FILE, {})
+
+def _save_highlights_store(store: Dict[str, Any]) -> None:
+    with _HL_LOCK:
+        # atomic-ish 저장
+        tmp = HIGHLIGHTS_FILE.with_suffix(".tmp")
+        try:
+            with tmp.open("w", encoding="utf-8") as f:
+                json.dump(store, f, ensure_ascii=False, indent=2)
+            tmp.replace(HIGHLIGHTS_FILE)
+        except Exception as e:
+            logger.exception("Failed to save highlights store: %s", e)
+            try:
+                if tmp.exists():
+                    tmp.unlink()
+            except Exception:
+                pass
+
+def _get_note_hash(md_text: str) -> str:
+    b = (md_text or "").encode("utf-8", errors="ignore")
+    return hashlib.sha1(b).hexdigest()
+
+DEFAULT_THEME: Dict[str, str] = {
+    "card_bg": "#ffffff",
+    "card_border": "#dddddd",
+    "accent": "#1f7aec",
+    "header_bg": "#222222",
+}
+
+TEXT_EXTS = {
+    ".txt",
+    ".md",
+    ".py",
+    ".rtf",
+    ".csv",
+    ".json",
+    ".yml",
+    ".yaml",
+    ".log",
+}
+
+# Markdown 확장
+# Markdown 확장 (✅ arithmatex를 가장 먼저)
+MD_EXTENSIONS = [
+    "pymdownx.arithmatex",   # ✅ 먼저!
+    "extra",
+    "tables",
+    "fenced_code",
+    "codehilite",
+    "toc",
+    "admonition",
+    "sane_lists",
+    "smarty",
+    "nl2br",
+    "meta",
+    "footnotes",
+    "pymdownx.superfences",
+    "pymdownx.tasklist",
+    "pymdownx.tilde",
+    "pymdownx.highlight",
+    "pymdownx.emoji",
+]
+
+MD_EXTENSION_CONFIGS = {
+    "codehilite": {"guess_lang": False, "noclasses": True},
+    "toc": {"permalink": True},
+    "pymdownx.tasklist": {"custom_checkbox": True, "clickable_checkbox": False},
+    "pymdownx.highlight": {"use_pygments": True, "linenums": False},
+
+    # ✅ \(...\), \[...\], $...$, $$...$$ 전부 인식하도록
+    "pymdownx.arithmatex": {
+        "generic": True,
+        "preview": False,
+        "inline_syntax": ["dollar", "round"],
+        "block_syntax": ["dollar", "square"],
+    },
+}
+
+TASK_PATTERN = re.compile(r"^(\s*[-*]\s+\[( |x|X)\]\s+)(.+)$")
+
+# ======= 로깅 =======
+
+logger = logging.getLogger("notebook_viewer")
+logger.setLevel(logging.INFO)
+
+formatter = logging.Formatter(
+    "%(asctime)s [%(levelname)s] %(name)s - %(message)s"
+)
+
+fh = logging.FileHandler(LOG_FILE, encoding="utf-8")
+fh.setFormatter(formatter)
+
+sh = logging.StreamHandler()
+sh.setFormatter(formatter)
+
+if not logger.handlers:
+    logger.addHandler(fh)
+    logger.addHandler(sh)
+
+logger.info("==== Notebook Viewer starting ====")
+logger.info("ROOT_DIR = %s", ROOT_DIR)
+logger.info("Markdown extensions enabled: %s", ", ".join(MD_EXTENSIONS))
+
+# ======= 간단 캐시 (frontmatter / 본문 / 태스크) =======
+
+MD_CACHE: Dict[str, Dict[str, Any]] = {}
+
+# ======= config.json 로딩 (로그인용) =======
+
+def load_config() -> Dict[str, Any]:
+    if not CONFIG_PATH.exists():
+        logger.warning(
+            "config.json not found. Using default auth (admin/admin). "
+            "Create config.json to change credentials."
+        )
+        return {
+            "auth": {
+                "username": "admin",
+                "password": "admin",
+            }
+        }
+    try:
+        with CONFIG_PATH.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data
+    except Exception as e:
+        logger.exception("Failed to load config.json: %s", e)
+    logger.warning("config.json invalid. Falling back to admin/admin.")
+    return {
+        "auth": {
+            "username": "admin",
+            "password": "admin",
+        }
+    }
+
+def get_auth_credential() -> Tuple[str, str]:
+    cfg = load_config()
+    auth = cfg.get("auth", {})
+    username = str(auth.get("username", "admin"))
+    password = str(auth.get("password", "admin"))
+    return username, password
+
+# ======= Markdown 저장 시 줄바꿈 정규화 =======
+
+def normalize_markdown_text(content: str) -> str:
+    """
+    - CRLF/CR → LF
+    - 연속 공백 줄은 최대 2줄까지만 허용
+    - 각 줄 우측 공백 제거
+    - 마지막에 개행 1개 유지
+    (여러 번 저장해도 텍스트가 더 망가지지 않도록 idempotent하게 설계)
+    """
+    # newline 통일
+    text = content.replace("\r\n", "\n").replace("\r", "\n")
+
+    lines = text.split("\n")
+    normalized_lines: List[str] = []
+    blank_run = 0
+
+    for line in lines:
+        stripped = line.rstrip()
+        if stripped == "":
+            blank_run += 1
+        else:
+            blank_run = 0
+        if blank_run <= 2:
+            normalized_lines.append(stripped)
+
+    # 끝부분의 완전 빈 줄은 최대 1줄만 남기기
+    while len(normalized_lines) > 1 and normalized_lines[-1] == "" and normalized_lines[-2] == "":
+        normalized_lines.pop()
+
+    normalized_text = "\n".join(normalized_lines)
+    if not normalized_text.endswith("\n"):
+        normalized_text += "\n"
+    return normalized_text
+
+# ======= 테마 / 프로젝트 순서 유틸 =======
+
+def load_project_order_config() -> List[str]:
+    """
+    프로젝트 카드 순서를 JSON에서 읽어온다.
+    값은 ROOT 기준 rel_path 배열.
+    """
+    data = load_json_file(PROJECT_ORDER_FILE, {"order": []})
+    if isinstance(data, dict):
+        order = data.get("order", [])
+        if isinstance(order, list):
+            return [str(p) for p in order]
+    return []
+
+
+def save_project_order_config(order: List[str]) -> None:
+    """
+    프로젝트 카드 순서를 JSON으로 저장.
+    """
+    data = {"order": order}
+    save_json_file(PROJECT_ORDER_FILE, data)
+    logger.info("Project order saved: %s", PROJECT_ORDER_FILE)
+
+
+def load_theme_config() -> Dict[str, Dict[str, str]]:
+    if not THEME_CONFIG_PATH.exists():
+        logger.info("Theme config not found. Using empty config.")
+        return {}
+    try:
+        with THEME_CONFIG_PATH.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data
+    except Exception as e:
+        logger.exception("Failed to load theme config: %s", e)
+    logger.warning("Theme config invalid. Using empty config.")
+    return {}
+
+
+def save_theme_config(cfg: Dict[str, Dict[str, str]]) -> None:
+    try:
+        with THEME_CONFIG_PATH.open("w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+        logger.info("Theme config saved: %s", THEME_CONFIG_PATH)
+    except Exception as e:
+        logger.exception("Failed to save theme config: %s", e)
+
+
+def get_theme_for_project(project_rel_path: str) -> Dict[str, str]:
+    cfg = load_theme_config()
+    theme = cfg.get(project_rel_path, {})
+    merged = {**DEFAULT_THEME, **theme}
+    return merged
+
+# ======= 공통 유틸 =======
+
+def safe_join(rel_path: str) -> Path:
+    """
+    ROOT_DIR / rel_path 를 resolve 하고,
+    ROOT_DIR 바깥이면 400 에러.
+    """
+    root = ROOT_DIR.resolve()
+    candidate = (ROOT_DIR / rel_path).resolve()
+
+    if candidate == root:
+        return candidate
+
+    if root not in candidate.parents:
+        logger.warning("Attempt to access outside root: %s", candidate)
+        raise HTTPException(status_code=400, detail="Invalid path")
+
+    return candidate
+
+
+def read_text_file(path: Path) -> Optional[str]:
+    for enc in ("utf-8", "cp949", "latin-1"):
+        try:
+            with path.open("r", encoding=enc, errors="replace") as f:
+                return f.read()
+        except Exception:
+            continue
+    logger.warning("Failed to read text file with known encodings: %s", path)
+    return None
+
+
+def read_docx_file(path: Path) -> Optional[str]:
+    if Document is None:
+        logger.warning("python-docx not installed; cannot read: %s", path)
+        return None
+    try:
+        doc = Document(str(path))
+        texts = [p.text for p in doc.paragraphs]
+        return "\n".join(texts)
+    except Exception as e:
+        logger.exception("Failed to read docx: %s", e)
+        return None
+
+_MATH_DOLLAR_BLOCK_RE = re.compile(r"(?s)\$\$(.+?)\$\$")
+_MATH_DOLLAR_INLINE_RE = re.compile(r"(?s)(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)")
+_MATH_ROUND_INLINE_RE  = re.compile(r"(?s)\\\((.+?)\\\)")
+_MATH_SQUARE_BLOCK_RE  = re.compile(r"(?s)\\\[(.+?)\\\]")
+
+def sanitize_math_angles(md_text: str) -> str:
+    """
+    HTML 파서가 '<', '>'를 태그로 오인해서 DOM이 깨지는 문제 방지.
+    수식 구간에서만 <, > 를 \\lt, \\gt 로 치환한다.
+    """
+    if not md_text:
+        return md_text
+
+    def _fix(tex: str) -> str:
+        # spacing 안전하게 trailing space 포함
+        return tex.replace("<", r"\lt ").replace(">", r"\gt ")
+
+    def _sub(pat: re.Pattern, s: str) -> str:
+        def repl(m: re.Match) -> str:
+            inner = m.group(1)
+            fixed = _fix(inner)
+            if fixed != inner:
+                logger.debug("sanitize_math_angles applied (len=%d)", len(inner))
+            return m.group(0).replace(inner, fixed)
+        return pat.sub(repl, s)
+
+    before = md_text
+    md_text = _sub(_MATH_DOLLAR_BLOCK_RE, md_text)
+    md_text = _sub(_MATH_SQUARE_BLOCK_RE, md_text)
+    md_text = _sub(_MATH_ROUND_INLINE_RE, md_text)
+    md_text = _sub(_MATH_DOLLAR_INLINE_RE, md_text)
+
+    if md_text != before:
+        logger.info("sanitize_math_angles: replaced '<'/'>' inside math blocks.")
+    return md_text
+
+def render_markdown(md_text: str) -> str:
+    """
+    표/인용문/이미지 자동 크기 포함한 Markdown 렌더링
+    - ✅ arithmatex가 escape보다 먼저 먹도록 확장 순서 조정
+    - ✅ MathJax 로딩은 base.html에서 1회만 로드 (여기서는 script 삽입 X)
+    """
+    try:
+        md_text = sanitize_math_angles(md_text) 
+        html_out = md_lib.markdown(
+            md_text,
+            extensions=MD_EXTENSIONS,
+            extension_configs=MD_EXTENSION_CONFIGS,
+            output_format="html5",
+        )
+
+        # (선택) 최소 스타일: 여기 넣어도 되고, style.css로 옮겨도 됨
+        html_out = (
+            "<style>"
+            "img{max-width:100%;height:auto;display:block;margin:1em auto;}"
+            "table{border-collapse:collapse;width:100%;margin:1em 0;}"
+            "th,td{border:1px solid #ccc;padding:6px 10px;text-align:left;}"
+            "th{background:#f8f8f8;font-weight:600;}"
+            "blockquote{border-left:4px solid #aaa;margin:1em 0;"
+            "padding-left:1em;color:#555;font-style:italic;}"
+            "</style>"
+        ) + html_out
+
+        return html_out
+
+    except Exception as e:
+        logger.exception("Markdown render failed: %s", e)
+        escaped = html.escape(md_text)
+        return f"<pre>{escaped}</pre>"
+
+
+def parse_frontmatter(md_text: str) -> Tuple[Dict[str, Any], str]:
+    """
+    맨 위의 YAML frontmatter(--- ... ---)를 파싱해서 (meta, body) 반환.
+    """
+    lines = md_text.splitlines()
+    if len(lines) < 3 or lines[0].strip() != "---":
+        return {}, md_text
+
+    end_idx = None
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            end_idx = i
+            break
+
+    if end_idx is None:
+        return {}, md_text
+
+    fm_lines = lines[1:end_idx]
+    body_lines = lines[end_idx + 1 :]
+    fm_raw = "\n".join(fm_lines)
+    body = "\n".join(body_lines)
+
+    meta: Dict[str, Any] = {}
+
+    if yaml is not None:
+        try:
+            loaded = yaml.safe_load(fm_raw)
+            if isinstance(loaded, dict):
+                meta = loaded
+        except Exception as e:
+            logger.exception("YAML frontmatter parse failed: %s", e)
+    else:
+        for line in fm_lines:
+            if ":" not in line:
+                continue
+            k, v = line.split(":", 1)
+            meta[k.strip()] = v.strip()
+
+    return meta, body
+
+
+def normalize_tags(value: Any) -> List[str]:
+    if isinstance(value, list):
+        tags = [str(v).strip() for v in value if str(v).strip()]
+    elif isinstance(value, str):
+        tags = [t.strip() for t in re.split(r"[,\s]+", value) if t.strip()]
+    else:
+        tags = []
+    return tags
+
+
+def extract_tasks_from_body(body: str) -> List[Dict[str, Any]]:
+    tasks: List[Dict[str, Any]] = []
+    for idx, line in enumerate(body.splitlines(), start=1):
+        m = TASK_PATTERN.match(line)
+        if not m:
+            continue
+        mark = m.group(2)
+        text = m.group(3).strip()
+        done = mark.lower() == "x"
+        tasks.append(
+            {
+                "line_no": idx,
+                "text": text,
+                "done": done,
+            }
+        )
+    return tasks
+def make_unique_name_flat(original_name: str, used: Set[str]) -> str:
+    """
+    zip root(=md와 같은 레벨)에 파일을 평탄화해서 넣을 때
+    basename 충돌이 나면 _2, _3 ... 붙여서 유니크하게 만든다.
+    """
+    name = (original_name or "file").strip()
+    if name not in used:
+        used.add(name)
+        return name
+
+    p = Path(name)
+    stem = p.stem or "file"
+    suffix = p.suffix or ""
+    i = 2
+    while True:
+        cand = f"{stem}_{i}{suffix}"
+        if cand not in used:
+            used.add(cand)
+            return cand
+        i += 1
+PDF_USER_CSS = r"""
+@page { margin: 36pt; }
+body {
+  font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans CJK KR", "Noto Sans", Arial, sans-serif;
+  font-size: 11pt;
+  line-height: 1.45;
+}
+code, pre {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 9.5pt;
+}
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid #cccccc; padding: 6px 10px; }
+th { background: #f6f6f6; font-weight: 700; }
+img { max-width: 100%; height: auto; }
+"""
+
+def _safe_unlink(path: str) -> None:
+    try:
+        os.remove(path)
+        logger.info("Temp file removed: %s", path)
+    except FileNotFoundError:
+        return
+    except Exception as e:
+        logger.warning("Failed to remove temp file %s: %s", path, e)
+
+def _meta_to_md_table(meta: Dict[str, Any]) -> str:
+    """
+    frontmatter meta를 PDF에 넣기 좋은 markdown table로 변환
+    """
+    if not meta:
+        return ""
+
+    def _fmt(v: Any) -> str:
+        if v is None:
+            return ""
+        if isinstance(v, (list, tuple)):
+            return ", ".join(str(x) for x in v)
+        if isinstance(v, dict):
+            try:
+                return json.dumps(v, ensure_ascii=False)
+            except Exception:
+                return str(v)
+        return str(v)
+
+    lines = ["| Key | Value |", "|---|---|"]
+    for k, v in meta.items():
+        key = str(k).replace("|", "\\|")
+        val = _fmt(v).replace("|", "\\|")
+        lines.append(f"| {key} | {val} |")
+    return "\n".join(lines) + "\n"
+
+def build_md_for_pdf(raw_md_text: str) -> str:
+    """
+    - YAML frontmatter는 제거(그대로 두면 PDF에 '---'가 찍힘)
+    - 대신 상단에 Metadata 섹션을 테이블로 삽입
+    """
+    meta, body = parse_frontmatter(raw_md_text)
+    meta = normalize_frontmatter_meta(meta or {})
+
+    if meta:
+        meta_md = "## Metadata\n\n" + _meta_to_md_table(meta) + "\n---\n\n"
+        return meta_md + (body.lstrip() if isinstance(body, str) else "")
+    return raw_md_text
+
+def build_pdf_from_markdown_file(
+    rel_norm: str,
+    md_text: str,
+    out_pdf_path: Path,
+) -> Tuple[int, int]:
+    """
+    rel_norm: ROOT 기준 md 파일 경로(슬래시 정규화)
+    md_text : 원본 md 텍스트
+    out_pdf_path: 생성할 PDF 경로
+    return: (images_copied, images_total)
+    """
+    if MarkdownPdf is None or Section is None:
+        raise RuntimeError("markdown-pdf not installed. Run: pip install markdown-pdf")
+
+    # 1) frontmatter 처리
+    md_for_pdf = build_md_for_pdf(md_text)
+    md_for_pdf = sanitize_math_angles(md_for_pdf)
+    # 2) 히스토리(.history)도 원본 폴더 기준으로 이미지 찾기
+    content_dir_rel = get_content_dir_rel(rel_norm)
+
+    # 3) 이미지 경로를 'PDF 작업폴더 root' 기준으로 평탄화 + 복사 목록 생성
+    rewritten_md, copies = rewrite_markdown_images_for_flat_bundle(md_for_pdf, content_dir_rel)
+
+    # 4) 임시 폴더에 이미지 복사 → markdown-pdf의 Section(root=...)로 처리
+    with tempfile.TemporaryDirectory(prefix="mdpdf_assets_") as tmpdir:
+        tmpdir_p = Path(tmpdir)
+
+        disable_bar = not sys.stderr.isatty()
+        total = len(copies)
+        ok = 0
+
+        for img_rel, arcname in tqdm(copies, desc="PDF assets", unit="img", disable=disable_bar):
+            try:
+                src = safe_join(img_rel)
+            except HTTPException:
+                logger.warning("PDF: skip invalid img path: %s", img_rel)
+                continue
+
+            if not src.exists() or not src.is_file():
+                logger.warning("PDF: skip missing img file: %s", src)
+                continue
+
+            dst = tmpdir_p / arcname
+            try:
+                shutil.copy2(str(src), str(dst))
+                ok += 1
+            except Exception as e:
+                logger.warning("PDF: copy failed %s -> %s (%s)", src, dst, e)
+
+        pdf = MarkdownPdf(toc_level=3)
+        pdf.meta["title"] = Path(rel_norm).name
+
+        # ✅ root=tmpdir : rewritten_md 안의 이미지 파일명(평탄화된 arcname)을 여기서 찾게 됨
+        pdf.add_section(Section(rewritten_md, root=str(tmpdir_p)), user_css=PDF_USER_CSS)
+
+        out_pdf_path.parent.mkdir(parents=True, exist_ok=True)
+        pdf.save(str(out_pdf_path))
+
+        logger.info("PDF saved: %s (images %d/%d)", out_pdf_path, ok, total)
+        return ok, total
+
+def rewrite_markdown_images_for_flat_bundle(
+    md_text: str,
+    content_dir_rel: str,
+) -> Tuple[str, List[Tuple[str, str]]]:
+    """
+    - md_text 안의 로컬 이미지 참조를 찾아서
+      ZIP root(=md와 같은 레벨)에 놓일 파일명(basename, 충돌 시 rename)으로 치환한다.
+    - 반환:
+        (rewritten_md_text, copies)
+        copies = [(원본 ROOT 기준 rel_path, zip 안 arcname(평탄화된 파일명)), ...]
+    """
+    used: Set[str] = set()
+    copies: List[Tuple[str, str]] = []
+
+    def _to_rel_path(src: str) -> Optional[str]:
+        src = (src or "").strip().strip("<>").strip()
+
+        # 외부/데이터/절대경로는 건드리지 않음
+        if src.startswith(("http://", "https://", "data:")):
+            return None
+        if src.startswith("/"):
+            # /research/media/... 만 로컬로 취급
+            if src.startswith("/research/media/"):
+                rel = src[len("/research/media/") :]
+                return str(Path(rel)).replace("\\", "/")
+            return None
+
+        # 상대경로 → content_dir_rel 기준으로 붙이기
+        if content_dir_rel:
+            rel = str(Path(content_dir_rel) / src).replace("\\", "/")
+        else:
+            rel = str(Path(src)).replace("\\", "/")
+
+        # 정규화
+        rel = str(Path(rel)).replace("\\", "/")
+        return rel
+
+    # 1) Markdown 이미지 ![](...)
+    md_img_pattern = re.compile(r"!\[[^\]]*]\(([^)]+)\)")
+    def _md_repl(m: re.Match) -> str:
+        inner = (m.group(1) or "").strip()
+
+        # "경로" + (옵션) title 분리(간단 처리)
+        src_part = inner
+        rest = ""
+        if " " in inner and not inner.startswith(("http://", "https://", "data:", "/")):
+            src_part, tail = inner.split(" ", 1)
+            rest = " " + tail
+
+        rel = _to_rel_path(src_part)
+        if not rel:
+            return m.group(0)
+
+        # ZIP에 넣을 파일명 결정(평탄화)
+        base = Path(rel).name
+        arc = make_unique_name_flat(base, used)
+
+        copies.append((rel, arc))
+        return f"![{m.group(0).split(']')[0][2:]}]({arc}{rest})"
+
+    rewritten = md_img_pattern.sub(_md_repl, md_text)
+
+    # 2) HTML <img src="...">
+    html_img_pattern = re.compile(r'(<img[^>]+src=["\'])([^"\']+)(["\'])', re.IGNORECASE)
+    def _html_repl(m: re.Match) -> str:
+        prefix, src, suffix = m.group(1), (m.group(2) or "").strip(), m.group(3)
+
+        rel = _to_rel_path(src)
+        if not rel:
+            return m.group(0)
+
+        base = Path(rel).name
+        arc = make_unique_name_flat(base, used)
+        copies.append((rel, arc))
+
+        return prefix + arc + suffix
+
+    rewritten = html_img_pattern.sub(_html_repl, rewritten)
+
+    # copies 중복 제거(같은 rel이 여러 번 등장할 수 있음) + arc 유지
+    uniq: Dict[str, str] = {}
+    for rel, arc in copies:
+        if rel not in uniq:
+            uniq[rel] = arc
+    copies_uniq = [(rel, arc) for rel, arc in uniq.items()]
+
+    return rewritten, copies_uniq
+
+def get_md_info(path: Path) -> Dict[str, Any]:
+    """
+    MD 파일 1개에 대한 frontmatter + 본문 + task 등 캐싱/반환
+    """
+    rel = path.relative_to(ROOT_DIR)
+    rel_str = str(rel).replace(os.sep, "/")
+    stat = path.stat()
+    mtime = stat.st_mtime
+    ctime = stat.st_ctime
+
+    cached = MD_CACHE.get(rel_str)
+    if cached and cached.get("mtime") == mtime:
+        return cached
+
+    text = read_text_file(path) or ""
+    meta, body = parse_frontmatter(text)
+    tags = normalize_tags(meta.get("tags"))
+    status = str(meta.get("status")).strip() if meta.get("status") is not None else ""
+    tasks = extract_tasks_from_body(body)
+
+    info = {
+        "rel_path": rel_str,
+        "name": path.name,
+        "text": text,
+        "body": body,
+        "meta": meta,
+        "tags": tags,
+        "status": status,
+        "mtime": mtime,
+        "ctime": ctime,
+        "tasks": tasks,
+    }
+    MD_CACHE[rel_str] = info
+    return info
+HISTORY_DIRNAME = ".history"
+import posixpath
+from pathlib import PurePosixPath
+
+import posixpath
+from pathlib import PurePosixPath
+
+def get_content_dir_rel(file_rel_norm: str) -> str:
+    """
+    일반 파일: 파일이 있는 폴더
+    히스토리 파일(.history 아래): .history의 '부모' 폴더 (원본 노트가 있던 폴더)
+    """
+    parts = file_rel_norm.replace("\\", "/").split("/")
+    dir_parts = parts[:-1]  # filename 제외
+
+    if HISTORY_DIRNAME in dir_parts:
+        idx = dir_parts.index(HISTORY_DIRNAME)
+        base = "/".join(dir_parts[:idx])  # .history 이전까지가 원본 폴더
+        logger.info("content_dir_rel(history)=%s (from=%s)", base, file_rel_norm)
+        return base
+
+    base = "/".join(dir_parts)
+    logger.info("content_dir_rel(normal)=%s (from=%s)", base, file_rel_norm)
+    return base
+def rewrite_img_srcs_to_media(html_out: str, content_dir_rel: str) -> str:
+    """
+    렌더된 HTML에서 <img src="...">가 상대경로면 /research/media/<content_dir_rel>/... 로 바꿔줌
+    (히스토리 md도 원본 폴더 기준으로 이미지가 깨지지 않게)
+    """
+    if not html_out or not content_dir_rel:
+        return html_out
+
+    def _fix(src: str) -> str:
+        src = (src or "").strip()
+
+        # 이미 절대/외부/데이터 URL이면 그대로
+        if src.startswith(("http://", "https://", "data:", "/")):
+            return src
+
+        # content_dir_rel 기준으로 정규화
+        joined = str(PurePosixPath(content_dir_rel) / src)
+        norm = posixpath.normpath(joined).replace("\\", "/")
+
+        # 루트 밖으로 탈출 시도면 건드리지 않음(안전)
+        if norm.startswith(".."):
+            return src
+
+        return f"/research/media/{norm}"
+
+    pattern = re.compile(r'(<img[^>]+src=["\'])([^"\']+)(["\'])', re.IGNORECASE)
+    new_html = pattern.sub(lambda m: m.group(1) + _fix(m.group(2)) + m.group(3), html_out)
+
+    logger.info("rewrite_img_srcs_to_media applied (base=%s)", content_dir_rel)
+    return new_html
+
+def is_under_history(path: Path) -> bool:
+    return HISTORY_DIRNAME in path.parts
+def build_content_disposition(filename: str) -> str:
+    """
+    Content-Disposition 헤더는 latin-1로 인코딩되기 때문에,
+    비ASCII(한글 등)가 들어가면 UnicodeEncodeError가 난다.
+
+    해결:
+      - filename="ASCII fallback"
+      - filename*=UTF-8''<percent-encoded>
+    를 함께 제공.
+    """
+    filename = (filename or "download").strip()
+
+    # 확장자 보존
+    p = Path(filename)
+    ext = p.suffix or ""
+    base = p.stem or "download"
+
+    # ASCII fallback 생성 (NFKD → ASCII 제거)
+    ascii_base = unicodedata.normalize("NFKD", base).encode("ascii", "ignore").decode("ascii")
+    ascii_base = re.sub(r"[^A-Za-z0-9._-]+", "_", ascii_base).strip("._-")
+    if not ascii_base:
+        ascii_base = "download"
+
+    ascii_name = f"{ascii_base}{ext}"
+
+    # RFC 5987: filename* (UTF-8 percent-encoding)
+    quoted = quote(filename, safe="")
+
+    cd = f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quoted}'
+    logger.info("Content-Disposition built: ascii=%s, utf8=%s", ascii_name, filename)
+    return cd
+
+def list_note_history_versions(note_path: Path, limit: int = 30) -> List[Dict[str, Any]]:
+    """
+    note_path.parent/.history 에 있는 백업들 중,
+    현재 note(stem/suffix)와 매칭되는 파일들을 시간 내림차순으로 반환
+    """
+    history_dir = note_path.parent / HISTORY_DIRNAME
+    if not history_dir.exists() or not history_dir.is_dir():
+        return []
+
+    stem = note_path.stem
+    suffix = note_path.suffix
+
+    prefix = f"{stem}_"
+
+    items: List[Dict[str, Any]] = []
+
+    for p in history_dir.iterdir():
+        if not p.is_file():
+            continue
+
+        name = p.name
+        # ✅ glob 대신 리터럴 prefix/suffix 매칭 (대괄호 포함해도 안전)
+        if not (name.startswith(prefix) and name.endswith(suffix)):
+            continue
+
+        saved_ts = p.stat().st_mtime
+        saved_at_dt = datetime.fromtimestamp(saved_ts)
+
+        # 파일명에서 timestamp 파싱 시도: stem_YYYYMMDD_HHMMSS.md
+        ts_part = name[len(prefix) : -len(suffix)]
+        if re.fullmatch(r"\d{8}_\d{6}", ts_part):
+            try:
+                saved_at_dt = datetime.strptime(ts_part, "%Y%m%d_%H%M%S")
+                saved_ts = saved_at_dt.timestamp()
+            except Exception:
+                pass
+
+        rel = str(p.relative_to(ROOT_DIR)).replace(os.sep, "/")
+        items.append(
+            {
+                "name": name,
+                "rel_path": rel,
+                "saved_ts": saved_ts,
+                "saved_at": saved_at_dt.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+        )
+
+    items.sort(key=lambda x: x["saved_ts"], reverse=True)
+    return items[:limit]
+
+
+
+def load_json_file(path: Path, default):
+    if not path.exists():
+        return default
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.exception("Failed to load json file %s: %s", path, e)
+        return default
+
+
+def save_json_file(path: Path, data) -> None:
+    try:
+        with path.open("w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.exception("Failed to save json file %s: %s", path, e)
+
+
+def load_favorites() -> Set[str]:
+    data = load_json_file(FAVORITES_FILE, {"paths": []})
+    paths = data.get("paths", []) if isinstance(data, dict) else []
+    return set(str(p) for p in paths)
+
+
+def save_favorites(paths: Set[str]) -> None:
+    data = {"paths": sorted(paths)}
+    save_json_file(FAVORITES_FILE, data)
+
+
+def load_recents() -> List[Dict[str, Any]]:
+    data = load_json_file(RECENTS_FILE, [])
+    if isinstance(data, list):
+        return data
+    return []
+
+
+def save_recents(recents: List[Dict[str, Any]]) -> None:
+    save_json_file(RECENTS_FILE, recents)
+
+
+def touch_recent(rel_path: str) -> None:
+    recents = load_recents()
+    now_ts = datetime.now().timestamp()
+    recents = [r for r in recents if r.get("rel_path") != rel_path]
+    recents.append({"rel_path": rel_path, "ts": now_ts})
+    recents.sort(key=lambda r: r.get("ts", 0.0), reverse=True)
+    MAX_RECENTS = 50
+    recents = recents[:MAX_RECENTS]
+    save_recents(recents)
+
+# ======= 데이터 수집 =======
+
+def get_project_list() -> List[Dict[str, Any]]:
+    if not ROOT_DIR.exists():
+        logger.error("Root directory does not exist: %s", ROOT_DIR)
+        raise FileNotFoundError(f"Root directory not found: {ROOT_DIR}")
+
+    logger.info("Scanning root for projects: %s", ROOT_DIR)
+
+    # ROOT 바로 아래 디렉토리만 프로젝트로 취급
+    dirs = [p for p in ROOT_DIR.iterdir() if p.is_dir()]
+
+    # 저장된 순서
+    saved_order = load_project_order_config()
+    order_index = {rel: idx for idx, rel in enumerate(saved_order)}
+
+    def sort_key(p: Path):
+        rel = p.relative_to(ROOT_DIR)
+        rel_str = str(rel).replace(os.sep, "/")
+        idx = order_index.get(rel_str)
+        if idx is not None:
+            return (0, idx)
+        return (1, rel_str.lower())
+
+    dirs_sorted = sorted(dirs, key=sort_key)
+
+    theme_cfg = load_theme_config()
+    projects: List[Dict[str, Any]] = []
+
+    for d in tqdm(dirs_sorted, desc="Projects", unit="proj"):
+        rel = d.relative_to(ROOT_DIR)
+        rel_str = str(rel).replace(os.sep, "/")
+        theme = {**DEFAULT_THEME, **theme_cfg.get(rel_str, {})}
+        projects.append(
+            {
+                "name": d.name,
+                "rel_path": rel_str,
+                "theme": theme,
+            }
+        )
+
+    logger.info("Found %d projects", len(projects))
+    return projects
+def preprocess_markdown_for_pdf(md_text: str, content_dir_rel: str) -> str:
+    """
+    PDF 변환 직전에 마크다운 안의 이미지 경로를 파일시스템 기준으로 정규화한다.
+
+    - /research/media/... 로 시작하는 경로를 ROOT 기준 상대경로로 바꿈
+    - 그 다음, content_dir_rel(노트의 원본 폴더) 기준으로 다시 상대화 가능하면 상대화
+      (Section(root=노트폴더)와 결합해서 이미지가 'md와 같은 폴더 기준'으로 해석되게 함)
+    """
+    if not md_text:
+        return md_text
+
+    base = (content_dir_rel or "").replace("\\", "/").strip("/")
+    media_prefix = "/research/media/"
+
+    def _normalize_src(src: str) -> str:
+        s = (src or "").strip().strip("<>").strip()
+
+        # 외부/데이터 URL은 그대로
+        if s.startswith(("http://", "https://", "data:")):
+            return s
+
+        # /research/media/... → ROOT 기준 상대경로로 변환
+        if s.startswith(media_prefix):
+            rel = s[len(media_prefix):].lstrip("/")
+
+            # rel이 "content_dir_rel/..." 형태면 content_dir_rel 기준 상대화
+            if base and rel.startswith(base + "/"):
+                rel = rel[len(base) + 1:]
+            return rel
+
+        # 그 외는 그대로(상대경로면 Section(root=...)가 알아서 처리)
+        return s
+
+    # 1) Markdown 이미지 ![](...)
+    md_img_pattern = re.compile(r"!\[[^\]]*]\(([^)]+)\)")
+    def _md_repl(m: re.Match) -> str:
+        inner = (m.group(1) or "").strip()
+
+        # "path" + optional title 처리(단순)
+        src_part = inner
+        rest = ""
+        if " " in inner and not inner.startswith(("http://", "https://", "data:", "/")):
+            src_part, tail = inner.split(" ", 1)
+            rest = " " + tail
+
+        fixed = _normalize_src(src_part)
+        return f"![]({fixed}{rest})" if m.group(0).startswith("![]") else f"![{m.group(0).split(']')[0][2:]}]({fixed}{rest})"
+
+    out = md_img_pattern.sub(_md_repl, md_text)
+
+    # 2) HTML <img src="...">
+    html_img_pattern = re.compile(r'(<img[^>]+src=["\'])([^"\']+)(["\'])', re.IGNORECASE)
+    def _html_repl(m: re.Match) -> str:
+        prefix, src, suffix = m.group(1), (m.group(2) or "").strip(), m.group(3)
+        fixed = _normalize_src(src)
+        return prefix + fixed + suffix
+
+    out = html_img_pattern.sub(_html_repl, out)
+    return out
+def _fix_pdf_toc_levels_inplace(pdf: Any) -> bool:
+    """
+    PyMuPDF set_toc 제약: item 0의 level은 반드시 1이어야 함.
+    markdown-pdf가 만든 toc가 0부터 시작하거나(혹은 2부터 시작)하면 에러가 남.
+
+    여기서 전체 toc level을 shift해서 첫 항목이 1이 되도록 보정한다.
+    """
+    toc = getattr(pdf, "toc", None)
+    if not isinstance(toc, list) or not toc:
+        return False
+
+    first = toc[0]
+    if not (isinstance(first, (list, tuple)) and len(first) >= 3 and isinstance(first[0], int)):
+        return False
+
+    first_lvl = int(first[0])
+    if first_lvl == 1:
+        return False
+
+    shift = 1 - first_lvl
+    new_toc = []
+    for item in toc:
+        if isinstance(item, (list, tuple)) and len(item) >= 3 and isinstance(item[0], int):
+            new_item = list(item)
+            lvl = int(new_item[0]) + shift
+            if lvl < 1:
+                lvl = 1
+            new_item[0] = lvl
+            new_toc.append(new_item)
+        else:
+            new_toc.append(item)
+
+    pdf.toc = new_toc
+    logger.warning("Adjusted PDF TOC levels (shift=%s) to satisfy PyMuPDF requirement.", shift)
+    return True
+
+def build_pdf_from_markdown_file(note_rel_norm: str, md_text: str, out_pdf_path: Path) -> None:
+    """
+    - note_rel_norm: ROOT 기준 md 상대경로(슬래시 정규화된 것)
+    - md_text: 원문 마크다운
+    - out_pdf_path: 생성할 PDF 파일 경로
+    """
+    if MarkdownPdf is None or Section is None:
+        raise RuntimeError("markdown-pdf가 설치되지 않았습니다. `pip install markdown-pdf`")
+
+    # ✅ 히스토리 md도 원본 폴더 기준으로 잡기
+    content_dir_rel = get_content_dir_rel(note_rel_norm)
+    content_dir_abs = safe_join(content_dir_rel) if content_dir_rel else ROOT_DIR
+
+    # ✅ /research/media/... 같은 경로가 있으면 PDF용으로 정규화
+    md_for_pdf = preprocess_markdown_for_pdf(md_text, content_dir_rel)
+
+    # 기본 CSS(필요시 더 추가)
+    user_css = """
+    img { max-width: 100%; height: auto; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #cccccc; padding: 6px 10px; }
+    """
+
+    pdf = MarkdownPdf(toc_level=2)  # 북마크 생성(헤딩 레벨 2까지)
+    try:
+        pdf.meta["title"] = Path(note_rel_norm).stem
+    except Exception:
+        pass
+
+    # ✅ 핵심: root를 "md가 있는 원본 폴더"로 둬서 상대 이미지 경로가 그대로 resolve되게 함
+    pdf.add_section(
+        Section(md_for_pdf, root=str(content_dir_abs), toc=True),
+        user_css=user_css,
+    )
+
+    out_pdf_path.parent.mkdir(parents=True, exist_ok=True)
+    if out_pdf_path.exists():
+        try:
+            out_pdf_path.unlink()
+        except Exception:
+            pass
+
+    try:
+        pdf.save(str(out_pdf_path))
+        return
+    except ValueError as e:
+        # ✅ 너가 본 에러: hierarchy level of item 0 must be 1
+        if "hierarchy level of item 0 must be 1" in str(e):
+            logger.warning("TOC hierarchy error caught. Trying to fix toc levels and retry...")
+            _fix_pdf_toc_levels_inplace(pdf)
+            if out_pdf_path.exists():
+                try:
+                    out_pdf_path.unlink()
+                except Exception:
+                    pass
+            pdf.save(str(out_pdf_path))
+            return
+        raise
+
+def list_markdown_files(project_rel_path: str) -> List[Dict[str, Any]]:
+    project_root = safe_join(project_rel_path)
+
+    if not project_root.exists() or not project_root.is_dir():
+        logger.warning("Project directory not found: %s", project_root)
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    logger.info("Listing markdown files in project: %s", project_root)
+
+    md_paths = [p for p in project_root.rglob("*.md") if not is_under_history(p)]
+    md_paths.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    notes: List[Dict[str, Any]] = []
+
+    for p in tqdm(md_paths, desc="Loading MD list", unit="file"):
+        rel = p.relative_to(ROOT_DIR)
+        rel_str = str(rel).replace(os.sep, "/")
+
+        stat = p.stat()
+        created_ts = stat.st_ctime
+        modified_ts = stat.st_mtime
+        created = datetime.fromtimestamp(created_ts).strftime("%Y-%m-%d %H:%M")
+        modified = datetime.fromtimestamp(modified_ts).strftime("%Y-%m-%d %H:%M")
+
+        info = get_md_info(p)
+        tags = info.get("tags", [])
+        status = info.get("status", "")
+        tasks = info.get("tasks", [])
+        todo_open = sum(1 for t in tasks if not t.get("done"))
+
+        notes.append(
+            {
+                "name": p.name,
+                "rel_path": rel_str,
+                "created": created,
+                "modified": modified,
+                "created_ts": created_ts,
+                "modified_ts": modified_ts,
+                "tags": tags,
+                "status": status,
+                "todo_open": todo_open,
+            }
+        )
+
+    logger.info("Listed %d markdown notes", len(notes))
+    return notes
+
+
+def extract_image_paths_from_markdown(
+    md_text: str,
+    note_rel_path: str,
+) -> List[str]:
+    """
+    - MD 내의 상대 이미지 경로( ![](), <img src=""> )를 찾아서
+    - (핵심) note_rel_path 기준 폴더를 계산할 때:
+        - 일반 md: md가 있는 폴더
+        - 히스토리 md(.history): .history의 부모(원본 폴더)
+    - 그 기준으로 상대 경로를 ROOT 기준 상대경로로 변환해서 리스트 반환.
+    """
+    logger.info("Extracting image paths from markdown: %s", note_rel_path)
+    img_paths: List[str] = []
+
+    note_rel_norm = note_rel_path.replace("\\", "/")
+    content_dir_rel = get_content_dir_rel(note_rel_norm)
+
+    # 1) ![](path)
+    md_img_pattern = re.compile(r"!\[[^\]]*]\(([^)]+)\)")
+    for match in md_img_pattern.findall(md_text):
+        src = match.strip()
+        if " " in src and not src.startswith(("http://", "https://", "data:", "/")):
+            src = src.split(" ")[0]
+
+        if src.startswith(("http://", "https://", "data:")):
+            continue
+
+        if src.startswith("/research/media/"):
+            rel = src[len("/research/media/") :]
+        else:
+            rel = f"{content_dir_rel}/{src}" if content_dir_rel else src
+
+        rel_norm = str(Path(rel)).replace("\\", "/")
+        img_paths.append(rel_norm)
+
+    # 2) <img src="...">
+    html_img_pattern = re.compile(
+        r'<img[^>]+src=["\']([^"\']+)["\']',
+        re.IGNORECASE,
+    )
+    for src in html_img_pattern.findall(md_text):
+        src = src.strip()
+        if src.startswith(("http://", "https://", "data:")):
+            continue
+
+        if src.startswith("/research/media/"):
+            rel = src[len("/research/media/") :]
+        else:
+            rel = f"{content_dir_rel}/{src}" if content_dir_rel else src
+
+        rel_norm = str(Path(rel)).replace("\\", "/")
+        img_paths.append(rel_norm)
+
+    uniq = sorted(set(img_paths))
+    logger.info("Found %d image paths (base=%s)", len(uniq), content_dir_rel)
+    return uniq
+
+# ======= FastAPI 앱 / 미들웨어 =======
+
+app = FastAPI(
+    title="연구노트 뷰어",
+)
+
+templates = Jinja2Templates(directory="templates")
+
+# 정적 파일: /research/static/...
+app.mount("/research/static", StaticFiles(directory="static"), name="static")
+
+
+@app.middleware("http")
+async def login_required_middleware(request: Request, call_next):
+    path = request.url.path
+
+    # 로그인 / 로그아웃 / 문서 관련은 예외
+    if (
+        path.startswith("/login")
+        or path.startswith("/logout")
+        or path.startswith("/research/login")
+        or path.startswith("/research/logout")
+        or path.startswith("/docs")
+        or path.startswith("/openapi")
+    ):
+        return await call_next(request)
+
+    # static은 로그인 없이 허용
+    if path.startswith("/research/static"):
+        return await call_next(request)
+
+    # 세션이 scope에 붙어있을 때만 안전하게 user 읽기
+    user = None
+    if "session" in request.scope:
+        sess = request.scope["session"]
+        if isinstance(sess, dict):
+            user = sess.get("user")
+
+    # /research/* 및 루트는 로그인 필요
+    if (path.startswith("/research") or path == "/") and not user:
+        logger.info("Unauthenticated access to %s → redirect /research/login", path)
+        return RedirectResponse(url="/research/login", status_code=303)
+
+    # 통과
+    response = await call_next(request)
+    return response
+app.add_middleware(
+    SessionMiddleware,
+    secret_key="CHANGE_THIS_TO_RANDOM_LONG_SECRET",
+)
+# ======= 예외 핸들러 =======
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    logger.error(
+        "HTTP error %s on %s %s",
+        exc.status_code,
+        request.method,
+        request.url.path,
+    )
+    return PlainTextResponse(
+        str(exc.detail),
+        status_code=exc.status_code,
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception(
+        "Unhandled error on %s %s",
+        request.method,
+        request.url.path,
+    )
+    return PlainTextResponse(
+        "서버 내부 오류가 발생했습니다.",
+        status_code=500,
+    )
+
+# ======= 로그인 / 로그아웃 =======
+
+@app.get("/research/login", response_class=HTMLResponse, name="login_page")
+async def login_page(request: Request) -> HTMLResponse:
+    logger.info("GET /research/login")
+    return templates.TemplateResponse(
+        "login.html",
+        {
+            "request": request,
+            "error": None,
+        },
+    )
+
+@app.post("/research/login", response_class=HTMLResponse, name="login_submit")
+async def login_submit(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+):
+    logger.info("POST /research/login (user=%s)", username)
+    cfg_user, cfg_pass = get_auth_credential()
+
+    if username == cfg_user and password == cfg_pass:
+        request.session["user"] = username
+        logger.info("Login success for %s", username)
+        return RedirectResponse(url="/research/", status_code=303)
+
+    logger.warning("Login failed for %s", username)
+    return templates.TemplateResponse(
+        "login.html",
+        {
+            "request": request,
+            "error": "아이디 또는 비밀번호가 올바르지 않습니다.",
+        },
+        status_code=401,
+    )
+
+
+@app.get("/research/logout", include_in_schema=False, name="logout")
+async def logout(request: Request) -> RedirectResponse:
+    logger.info("GET /research/logout")
+    request.session.clear()
+    return RedirectResponse(url="/research/login", status_code=303)
+
+# ======= 루트 → /research/ 리다이렉트 =======
+
+@app.get("/", include_in_schema=False)
+async def root_redirect() -> RedirectResponse:
+    logger.info("GET / -> redirect to /research/")
+    return RedirectResponse(url="/research/", status_code=307)
+
+# ======= 라우트: 인덱스 (/research/) =======
+
+@app.get("/research/", response_class=HTMLResponse, name="index")
+async def index(request: Request) -> HTMLResponse:
+    logger.info("GET /research/ - index (project list)")
+    projects = get_project_list()
+
+    favorites = load_favorites()
+    recents_raw = load_recents()
+
+    recent_notes: List[Dict[str, Any]] = []
+    favorite_notes: List[Dict[str, Any]] = []
+
+    # 최근 문서 (상위 5개)
+    for r in recents_raw[:5]:
+        rel_path = r.get("rel_path")
+        if not isinstance(rel_path, str):
+            continue
+        try:
+            p = safe_join(rel_path)
+        except HTTPException:
+            continue
+        if not p.exists() or not p.is_file():
+            continue
+        recent_notes.append(
+            {
+                "name": p.name,
+                "rel_path": rel_path,
+                "ts": r.get("ts"),
+            }
+        )
+
+    # 즐겨찾기
+    for rel_path in sorted(favorites):
+        try:
+            p = safe_join(rel_path)
+        except HTTPException:
+            continue
+        if not p.exists() or not p.is_file():
+            continue
+        favorite_notes.append(
+            {
+                "name": p.name,
+                "rel_path": rel_path,
+            }
+        )
+
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "projects": projects,
+            "default_theme": DEFAULT_THEME,
+            "recent_notes": recent_notes,
+            "favorite_notes": favorite_notes,
+        },
+    )
+
+# ======= 라우트: 프로젝트 리스트뷰 =======
+
+@app.get("/research/project", response_class=HTMLResponse, name="project_view")
+async def project_view(
+    request: Request,
+    rel_path: str = Query(..., description="ROOT 기준 프로젝트 디렉토리 경로"),
+    sort: str = Query("modified", description="정렬 기준: name|created|modified"),
+    order: str = Query("desc", description="정렬 방향: asc|desc"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=5, le=200),
+    q: Optional[str] = Query(None, description="파일명/경로/태그 검색어"),
+) -> HTMLResponse:
+    logger.info(
+        "GET /research/project (rel_path=%s, sort=%s, order=%s, page=%s, page_size=%s, q=%s)",
+        rel_path,
+        sort,
+        order,
+        page,
+        page_size,
+        q,
+    )
+
+    project_dir = safe_join(rel_path)
+    if not project_dir.exists() or not project_dir.is_dir():
+        logger.warning("Project not found for view: %s", project_dir)
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    theme = get_theme_for_project(rel_path)
+    all_notes = list_markdown_files(rel_path)
+
+    # 검색
+    if q:
+        q_lower = q.lower()
+        filtered = []
+        for n in all_notes:
+            tags = " ".join(n.get("tags", []))
+            status = n.get("status", "")
+            haystack = " ".join(
+                [
+                    n["name"],
+                    n["rel_path"],
+                    tags,
+                    status,
+                ]
+            ).lower()
+            if q_lower in haystack:
+                filtered.append(n)
+    else:
+        filtered = all_notes
+
+    # 정렬
+    sort_key = sort.lower()
+    reverse = order.lower() == "desc"
+
+    def key_func(n: Dict[str, Any]):
+        if sort_key == "name":
+            return n["name"].lower()
+        elif sort_key == "created":
+            return n["created_ts"]
+        else:
+            return n["modified_ts"]
+
+    filtered.sort(key=key_func, reverse=reverse)
+
+    # 페이지네이션
+    total = len(filtered)
+    total_pages = max((total + page_size - 1) // page_size, 1)
+    if page > total_pages:
+        page = total_pages
+
+    start = (page - 1) * page_size
+    end = start + page_size
+    page_notes = filtered[start:end]
+
+    favorites = load_favorites()
+    for n in page_notes:
+        n["is_favorite"] = n["rel_path"] in favorites
+
+    return templates.TemplateResponse(
+        "project.html",
+        {
+            "request": request,
+            "project_name": project_dir.name,
+            "project_rel_path": rel_path,
+            "notes": page_notes,
+            "theme": theme,
+            "sort": sort,
+            "order": order,
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "total_pages": total_pages,
+            "q": q or "",
+        },
+    )
+
+# ======= 라우트: 테마 설정 =======
+
+@app.get("/research/settings", response_class=HTMLResponse, name="settings_view")
+async def settings_view(
+    request: Request,
+    rel_path: str = Query(..., description="ROOT 기준 프로젝트 디렉토리 경로"),
+) -> HTMLResponse:
+    logger.info("GET /research/settings?rel_path=%s", rel_path)
+
+    project_dir = safe_join(rel_path)
+    if not project_dir.exists() or not project_dir.is_dir():
+        logger.warning("Project not found for settings: %s", project_dir)
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    theme = get_theme_for_project(rel_path)
+
+    return templates.TemplateResponse(
+        "settings.html",
+        {
+            "request": request,
+            "project_name": project_dir.name,
+            "project_rel_path": rel_path,
+            "theme": theme,
+            "default_theme": DEFAULT_THEME,
+        },
+    )
+
+
+@app.post("/research/settings", response_class=HTMLResponse, name="settings_save")
+async def settings_save(
+    rel_path: str = Form(...),
+    card_bg: str = Form(...),
+    card_border: str = Form(...),
+    accent: str = Form(...),
+    header_bg: str = Form(...),
+) -> RedirectResponse:
+    logger.info("POST /research/settings for rel_path=%s", rel_path)
+
+    new_theme = {
+        "card_bg": card_bg or DEFAULT_THEME["card_bg"],
+        "card_border": card_border or DEFAULT_THEME["card_border"],
+        "accent": accent or DEFAULT_THEME["accent"],
+        "header_bg": header_bg or DEFAULT_THEME["header_bg"],
+    }
+
+    cfg = load_theme_config()
+    cfg[rel_path] = new_theme
+    save_theme_config(cfg)
+
+    return RedirectResponse(
+        url=f"/research/project?rel_path={rel_path}",
+        status_code=303,
+    )
+import json
+import re
+import ast
+import logging
+from typing import Any, Dict
+
+
+
+_UNICODE_ESC_RE = re.compile(r"\\u[0-9a-fA-F]{4}")
+
+def normalize_frontmatter_meta(meta: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    frontmatter meta 값이 JSON 문자열로 들어오거나, '\\uXXXX' 이스케이프가 남아있는 경우
+    사람이 읽기 좋은 형태로 복원한다.
+    """
+    def _norm(v: Any) -> Any:
+        # 1) 문자열인데 \uXXXX 패턴이 실제로 포함된 경우만 처리 (Windows 경로 C:\Users 같은 건 안전)
+        if isinstance(v, str) and _UNICODE_ESC_RE.search(v):
+            s = v.strip()
+
+            # 1-1) JSON 값처럼 보이면 우선 json.loads로 복원 (리스트/딕트/문자열 모두 가능)
+            if s.startswith("[") or s.startswith("{") or (s.startswith('"') and s.endswith('"')):
+                try:
+                    restored = json.loads(s)
+                    logger.debug("meta json.loads restored: %s -> %s", v[:120], str(restored)[:120])
+                    return _norm(restored)
+                except Exception:
+                    pass
+
+            # 1-2) 혹시 파이썬 리터럴(싱글쿼트) 형태면 literal_eval 시도
+            try:
+                restored = ast.literal_eval(s)
+                logger.debug("meta literal_eval restored: %s -> %s", v[:120], str(restored)[:120])
+                return _norm(restored)
+            except Exception:
+                pass
+
+            # 1-3) 마지막 fallback: unicode_escape로 \u 디코딩
+            try:
+                restored = v.encode("utf-8").decode("unicode_escape")
+                logger.debug("meta unicode_escape restored: %s -> %s", v[:120], restored[:120])
+                return restored
+            except Exception:
+                return v
+
+        # 2) 컨테이너면 재귀
+        if isinstance(v, list):
+            return [_norm(x) for x in v]
+        if isinstance(v, dict):
+            return {k: _norm(x) for k, x in v.items()}
+
+        return v
+
+    return {k: _norm(v) for k, v in (meta or {}).items()}
+# ======= 라우트: 상세 보기 =======
+@app.get("/research/view", response_class=HTMLResponse, name="view_file")
+async def view_file(
+    request: Request,
+    rel_path: str = Query(..., description="ROOT 기준 상대 파일 경로"),
+) -> HTMLResponse:
+    logger.info("GET /research/view (view %s)", rel_path)
+
+    target = safe_join(rel_path)
+    if not target.exists() or not target.is_file():
+        logger.warning("File not found: %s", target)
+        raise HTTPException(status_code=404, detail="File not found")
+
+    rel_norm = rel_path.replace("\\", "/")
+    touch_recent(rel_norm)
+
+    # ✅ 핵심: 히스토리 md면 원본 폴더를 content base로 잡는다
+    content_dir_rel = get_content_dir_rel(rel_norm)
+
+    parts = rel_norm.split("/")
+    project_rel_path = parts[0] if len(parts) > 1 else ""
+    project_name: Optional[str] = None
+    theme = DEFAULT_THEME
+    other_notes: List[Dict[str, Any]] = []
+
+    if project_rel_path:
+        try:
+            project_dir = safe_join(project_rel_path)
+            if project_dir.exists() and project_dir.is_dir():
+                project_name = project_dir.name
+                theme = get_theme_for_project(project_rel_path)
+                all_notes = list_markdown_files(project_rel_path)
+                other_notes = [n for n in all_notes if n["rel_path"] != rel_norm]
+        except Exception as e:
+            logger.exception("Error while listing other notes: %s", e)
+
+    ext = target.suffix.lower()
+    is_pdf = ext == ".pdf"
+    is_hwp = ext in {".hwp", ".hwpx"}
+    is_docx = ext == ".docx"
+    is_text = ext in TEXT_EXTS
+    is_markdown = ext == ".md"
+
+    text_content: Optional[str] = None
+    html_content: Optional[str] = None
+    unsupported_reason: Optional[str] = None
+
+    md_meta: Dict[str, Any] = {}
+    md_tags: List[str] = []
+    md_status: str = ""
+    todo_open_count: int = 0
+
+    # ✅ 하이라이트/형광펜 용(노트 내용 변경 감지용 해시)
+    content_hash: str = ""
+
+    try:
+        if is_markdown:
+            info = get_md_info(target)
+            md_meta = info.get("meta", {})
+            md_meta = normalize_frontmatter_meta(md_meta)
+            md_tags = info.get("tags", [])
+            md_status = info.get("status", "")
+            tasks = info.get("tasks", [])
+            todo_open_count = sum(1 for t in tasks if not t.get("done"))
+
+            raw_text = info.get("text")
+            if raw_text is None:
+                unsupported_reason = "Markdown 파일을 읽을 수 없습니다."
+            else:
+                # ✅ 현재 노트 내용 해시(하이라이트 stale 판단에 사용)
+                content_hash = _get_note_hash(raw_text)
+
+                # 1) md → html
+                html_content = render_markdown(raw_text)
+                # 2) ✅ 히스토리 md도 이미지 src를 /research/media/<원본폴더>/... 로 강제
+                html_content = rewrite_img_srcs_to_media(html_content, content_dir_rel)
+
+        elif is_text:
+            raw_text = read_text_file(target)
+            if raw_text is None:
+                unsupported_reason = "텍스트 파일을 읽을 수 없습니다."
+            else:
+                text_content = raw_text
+
+        elif is_docx:
+            raw_text = read_docx_file(target)
+            if raw_text is None:
+                if Document is None:
+                    unsupported_reason = "python-docx가 설치되어 있지 않습니다. (pip install python-docx)"
+                else:
+                    unsupported_reason = "docx 파일을 읽는 중 오류가 발생했습니다."
+            else:
+                text_content = raw_text
+
+        elif is_pdf:
+            # embed로 처리
+            pass
+
+        elif is_hwp:
+            unsupported_reason = "HWP/HWXP 파일은 미리보기 미지원 (다운로드만 가능)"
+
+        else:
+            unsupported_reason = f"미리보기를 지원하지 않는 형식입니다: {ext}"
+
+    except Exception as e:
+        logger.exception("Error while preparing file content: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail="파일 내용을 처리하는 중 오류가 발생했습니다.",
+        )
+
+    download_file_url = request.url_for("download_file", rel_path=rel_path)
+    download_bundle_url: Optional[str] = None
+    if is_markdown:
+        download_bundle_url = request.url_for("download_bundle", rel_path=rel_path)
+
+    # ✅ media_base_url도 content_dir_rel 기준(히스토리면 원본 폴더)
+    media_base_url: Optional[str] = None
+    if content_dir_rel:
+        media_base_url = str(request.url_for("serve_media", rel_path=content_dir_rel))
+
+    # 같은 폴더 내 첨부파일(✅ 히스토리도 원본 폴더 기준으로)
+    attachments: List[Dict[str, Any]] = []
+    if content_dir_rel:
+        try:
+            base_dir = safe_join(content_dir_rel)
+            if base_dir.exists() and base_dir.is_dir():
+                for p in sorted(base_dir.iterdir(), key=lambda x: x.name.lower()):
+                    if not p.is_file():
+                        continue
+                    # 현재 문서 파일명과 같으면 스킵(원본 폴더에 같은 이름이 있을 때)
+                    if p.name == target.name:
+                        continue
+                    if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".webp"}:
+                        continue
+                    rel_att = p.relative_to(ROOT_DIR)
+                    rel_att_str = str(rel_att).replace(os.sep, "/")
+                    attachments.append({"name": p.name, "rel_path": rel_att_str})
+        except Exception as e:
+            logger.exception("Failed to list attachments: %s", e)
+
+    favorites = load_favorites()
+    is_favorite = rel_norm in favorites
+
+    # 우측 패널: 최근 열어본 노트 (현재 문서 제외, 최대 5개)
+    recents_raw = load_recents()
+    recent_notes_panel: List[Dict[str, Any]] = []
+    for r in recents_raw:
+        if len(recent_notes_panel) >= 5:
+            break
+        rp = r.get("rel_path")
+        if not isinstance(rp, str):
+            continue
+        rp = rp.replace("\\", "/")
+        if rp == rel_norm:
+            continue
+        try:
+            p = safe_join(rp)
+        except HTTPException:
+            continue
+        if not p.exists() or not p.is_file():
+            continue
+        recent_notes_panel.append({"name": p.name, "rel_path": rp})
+
+    # 우측 패널: 히스토리(현재 md만)
+    history_versions: List[Dict[str, Any]] = []
+    if is_markdown:
+        history_versions = list_note_history_versions(target, limit=30)
+
+    logger.info("히스토리버전: %s", history_versions)
+
+    return templates.TemplateResponse(
+        "viewer.html",
+        {
+            "request": request,
+            "rel_path": rel_path,
+            "file_name": target.name,
+            "file_type": ext or "파일",
+            "is_pdf": is_pdf,
+            "html_content": html_content,
+            "text_content": text_content,
+            "unsupported_reason": unsupported_reason,
+            "download_file_url": str(download_file_url),
+            "download_bundle_url": str(download_bundle_url) if download_bundle_url else None,
+            "project_rel_path": project_rel_path,
+            "project_name": project_name,
+            "other_notes": other_notes,
+            "theme": theme,
+            "media_base_url": media_base_url,
+            "is_markdown": is_markdown,
+            "meta": md_meta,
+            "tags": md_tags,
+            "status": md_status,
+            "todo_open_count": todo_open_count,
+            "attachments": attachments,
+            "is_favorite": is_favorite,
+            "recent_notes_panel": recent_notes_panel,
+            "history_versions": history_versions,
+            # ✅ 형광펜(하이라이트) 기능용
+            "content_hash": content_hash,
+        },
+    )
+
+
+# ======= 라우트: 새 문서 생성 =======
+
+@app.get("/research/new", response_class=HTMLResponse, name="new_file")
+async def new_file(
+    request: Request,
+    rel_path: str = Query(..., description="ROOT 기준 프로젝트 디렉토리 경로"),
+) -> HTMLResponse:
+    logger.info("GET /research/new (project=%s)", rel_path)
+
+    project_dir = safe_join(rel_path)
+    if not project_dir.exists() or not project_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    theme = get_theme_for_project(rel_path)
+
+    templates_dir = Path("note_templates")
+    template_files: List[str] = []
+    if templates_dir.exists() and templates_dir.is_dir():
+        for p in sorted(templates_dir.glob("*.md"), key=lambda x: x.name.lower()):
+            template_files.append(p.name)
+
+    return templates.TemplateResponse(
+        "new.html",
+        {
+            "request": request,
+            "project_rel_path": rel_path,
+            "project_name": project_dir.name,
+            "theme": theme,
+            "available_templates": template_files,
+        },
+    )
+
+
+def load_template_content(template_name: Optional[str]) -> str:
+    if not template_name:
+        return ""
+    templates_dir = Path("note_templates")
+    t_path = templates_dir / template_name
+    if not t_path.exists() or not t_path.is_file():
+        return ""
+    text = read_text_file(t_path)
+    return text or ""
+
+
+@app.post("/research/new", response_class=HTMLResponse)
+async def create_file(
+    request: Request,
+    project_rel_path: str = Form(...),
+    title: str = Form(...),
+    content: str = Form(""),
+    template_name: Optional[str] = Form(None),
+) -> RedirectResponse:
+    logger.info(
+        "POST /research/new (project=%s, title=%s)",
+        project_rel_path,
+        title,
+    )
+
+    if not title.strip():
+        raise HTTPException(status_code=400, detail="제목은 필수입니다.")
+
+    template_content = load_template_content(template_name)
+    if template_content:
+        if content.strip():
+            content = template_content.rstrip() + "\n\n" + content.lstrip()
+        else:
+            content = template_content
+
+    raw_name = title.strip()
+    if not raw_name.lower().endswith(".md"):
+        raw_name += ".md"
+
+    safe_name = re.sub(r'[\\/:*?"<>|]', "_", raw_name)
+
+    rel = str(Path(project_rel_path) / safe_name).replace("\\", "/")
+    target = safe_join(rel)
+
+    if target.exists():
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_name = f"{Path(safe_name).stem}_{ts}.md"
+        rel = str(Path(project_rel_path) / safe_name).replace("\\", "/")
+        target = safe_join(rel)
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    text_to_save = normalize_markdown_text(content)
+    with target.open("w", encoding="utf-8", errors="replace") as f:
+        f.write(text_to_save)
+
+    # 캐시 무효화
+    MD_CACHE.pop(rel.replace("\\", "/"), None)
+
+    logger.info("Created new note: %s", target)
+
+    view_url = request.url_for("view_file")
+    redirect_url = f"{view_url}?rel_path={rel}"
+    return RedirectResponse(url=redirect_url, status_code=303)
+
+# ======= 라우트: 기존 문서 수정 =======
+
+@app.get("/research/edit", response_class=HTMLResponse, name="edit_file")
+async def edit_file(
+    request: Request,
+    rel_path: str = Query(..., description="ROOT 기준 상대 파일 경로"),
+) -> HTMLResponse:
+    logger.info("GET /research/edit (rel_path=%s)", rel_path)
+
+    target = safe_join(rel_path)
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    if target.suffix.lower() != ".md":
+        raise HTTPException(
+            status_code=400, detail="현재는 .md 파일만 웹에서 수정 가능합니다."
+        )
+
+    raw_text = read_text_file(target)
+    if raw_text is None:
+        raise HTTPException(status_code=500, detail="파일을 읽을 수 없습니다.")
+
+    rel_norm = rel_path.replace("\\", "/")
+    note_dir_rel = (
+        "/".join(rel_norm.split("/")[:-1]) if "/" in rel_norm else ""
+    )
+
+    project_rel_path = rel_norm.split("/")[0] if "/" in rel_norm else ""
+    theme = (
+        get_theme_for_project(project_rel_path)
+        if project_rel_path
+        else DEFAULT_THEME
+    )
+
+    image_base_dir = note_dir_rel or project_rel_path or ""
+
+    return templates.TemplateResponse(
+        "edit.html",
+        {
+            "request": request,
+            "rel_path": rel_path,
+            "file_name": target.name,
+            "raw_content": raw_text,
+            "image_base_dir": image_base_dir,
+            "theme": theme,
+        },
+    )
+
+
+@app.post("/research/save", response_class=HTMLResponse, name="save_file")
+async def save_file(
+    request: Request,
+    rel_path: str = Form(...),
+    content: str = Form(...),
+) -> RedirectResponse:
+    logger.info("POST /research/save (rel_path=%s)", rel_path)
+
+    target = safe_join(rel_path)
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # 간단 자동 백업
+    try:
+        history_dir = target.parent / ".history"
+        history_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_name = f"{target.stem}_{ts}{target.suffix}"
+        backup_path = history_dir / backup_name
+        shutil.copy2(str(target), str(backup_path))
+        logger.info("Backup saved: %s", backup_path)
+    except Exception as e:
+        logger.exception("Failed to create backup before save: %s", e)
+
+    text_to_save = content
+    if target.suffix.lower() == ".md":
+        text_to_save = normalize_markdown_text(content)
+
+    with target.open("w", encoding="utf-8", errors="replace") as f:
+        f.write(text_to_save)
+
+    # 캐시 무효화
+    MD_CACHE.pop(rel_path.replace("\\", "/"), None)
+
+    logger.info("Saved file: %s", target)
+
+    view_url = request.url_for("view_file")
+    redirect_url = f"{view_url}?rel_path={rel_path}"
+    return RedirectResponse(url=redirect_url, status_code=303)
+
+# ======= 라우트: 이미지 업로드 (Ctrl+V 등) =======
+
+@app.post("/research/upload_image", name="upload_image")
+async def upload_image(
+    base_rel_dir: str = Form(..., description="이미지를 저장할 기준 폴더 (ROOT 기준 상대경로)"),
+    image: UploadFile = File(...),
+):
+    logger.info("POST /research/upload_image (base_rel_dir=%s, filename=%s)", base_rel_dir, image.filename)
+
+    base_dir = safe_join(base_rel_dir) if base_rel_dir else ROOT_DIR
+    images_dir = base_dir / "_images"
+    images_dir.mkdir(parents=True, exist_ok=True)
+
+    orig_name = image.filename or "image"
+    ext = Path(orig_name).suffix.lower()
+    if ext not in {".png", ".jpg", ".jpeg", ".gif", ".webp"}:
+        ext = ".png"
+
+    fname = datetime.now().strftime("%Y%m%d_%H%M%S_%f") + ext
+    save_path = images_dir / fname
+
+    data = await image.read()
+    with save_path.open("wb") as f:
+        f.write(data)
+
+    logger.info("Saved pasted image: %s", save_path)
+
+    md_path = f"_images/{fname}"
+    return {"ok": True, "md_path": md_path}
+
+# ======= 라우트: media 서빙 =======
+
+@app.get("/research/media/{rel_path:path}", name="serve_media")
+async def serve_media(rel_path: str) -> FileResponse:
+    logger.info("GET /research/media/%s", rel_path)
+    target = safe_join(rel_path)
+
+    if not target.exists() or not target.is_file():
+        logger.warning("Media file not found: %s", target)
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return FileResponse(path=str(target))
+
+# ======= 라우트: 단일 파일 다운로드 =======
+
+@app.get("/research/download/{rel_path:path}", name="download_file")
+async def download_file(rel_path: str) -> FileResponse:
+    target = safe_join(rel_path)
+
+    if not target.exists() or not target.is_file():
+        logger.warning("Download - file not found: %s", target)
+        raise HTTPException(status_code=404, detail="File not found")
+
+    logger.info("Download file: %s", target)
+
+    headers = {
+        "Content-Disposition": build_content_disposition(target.name)
+    }
+
+    # ✅ filename 파라미터로 넣지 말고(한글이면 터질 수 있음), headers로 직접 지정
+    return FileResponse(
+        path=str(target),
+        media_type="application/octet-stream",
+        headers=headers,
+    )
+
+# ======= 라우트: 프로젝트 카드 순서 저장 =======
+
+@app.post("/research/projects/order", name="save_project_order")
+async def save_project_order_api(
+    payload: Dict[str, Any] = Body(...),
+):
+    """
+    프로젝트 카드 순서를 클라이언트에서 전달받아 저장.
+    payload = {"order": ["proj1", "proj2", ...]} 형태
+    """
+    order = payload.get("order")
+    if not isinstance(order, list):
+        raise HTTPException(status_code=400, detail="order 필드는 리스트여야 합니다.")
+
+    logger.info("POST /research/projects/order - raw %d items", len(order))
+
+    valid: List[str] = []
+    for rel in order:
+        if not isinstance(rel, str):
+            continue
+        try:
+            p = safe_join(rel)
+        except HTTPException:
+            continue
+        # ROOT 바로 아래 폴더만 프로젝트로 인정
+        if p.exists() and p.is_dir() and p.parent.resolve() == ROOT_DIR.resolve():
+            rel_norm = str(p.relative_to(ROOT_DIR)).replace(os.sep, "/")
+            valid.append(rel_norm)
+
+    # 중복 제거 + 순서 유지
+    seen = set()
+    deduped: List[str] = []
+    for r in valid:
+        if r in seen:
+            continue
+        seen.add(r)
+        deduped.append(r)
+
+    save_project_order_config(deduped)
+    logger.info("Project order accepted %d items", len(deduped))
+    return {"ok": True, "count": len(deduped)}
+
+# ======= 라우트: MD + 이미지 ZIP 번들 =======
+
+@app.get("/research/download_bundle/{rel_path:path}", name="download_bundle")
+async def download_bundle(rel_path: str) -> StreamingResponse:
+    logger.info("GET /research/download_bundle/%s", rel_path)
+
+    target = safe_join(rel_path)
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    if target.suffix.lower() != ".md":
+        raise HTTPException(
+            status_code=400, detail="MD 파일에 대해서만 번들 다운로드를 지원합니다."
+        )
+
+    md_text = read_text_file(target)
+    if md_text is None:
+        raise HTTPException(status_code=500, detail="MD 파일을 읽을 수 없습니다.")
+
+    # ✅ 히스토리(.history)에서 다운로드해도 원본 컨텐츠 폴더 기준으로 이미지 찾기
+    rel_norm = rel_path.replace("\\", "/")
+    content_dir_rel = get_content_dir_rel(rel_norm)
+
+    # ✅ ZIP 평탄화를 위해 MD 안의 이미지 경로도 basename으로 바꾼다
+    rewritten_md, copies = rewrite_markdown_images_for_flat_bundle(md_text, content_dir_rel)
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        # 1) MD는 수정본을 ZIP에 기록 (파일명은 원본 md 이름 유지)
+        zf.writestr(target.name, rewritten_md)
+
+        # 2) 이미지는 ZIP root(=md와 같은 레벨)로 평탄화해서 넣기
+        for img_rel, arcname in copies:
+            try:
+                img_path = safe_join(img_rel)
+            except HTTPException:
+                logger.warning("Skip invalid img path: %s", img_rel)
+                continue
+
+            if not img_path.exists() or not img_path.is_file():
+                logger.warning("Skip missing img file: %s", img_path)
+                continue
+
+            # ✅ images/ 폴더 없이 arcname 그대로
+            zf.write(str(img_path), arcname=arcname)
+
+    buf.seek(0)
+
+    zip_name = f"{target.stem}_bundle.zip"
+    headers = {"Content-Disposition": build_content_disposition(zip_name)}
+
+    logger.info("Bundle(flat) created: %s | images=%d", target, len(copies))
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers=headers,
+    )
+
+def safe_remove_file(path: str, retries: int = 10, delay_sec: float = 0.2) -> None:
+    """
+    Windows에서 FileResponse가 파일 핸들을 잠깐 쥐고 있을 수 있어서
+    즉시 삭제가 실패할 수 있음 → 재시도.
+    """
+    for i in range(retries):
+        try:
+            os.remove(path)
+            logger.info("Temp file removed: %s", path)
+            return
+        except FileNotFoundError:
+            logger.info("Temp file already removed: %s", path)
+            return
+        except PermissionError as e:
+            logger.warning("Temp file remove blocked (try %d/%d): %s", i + 1, retries, e)
+            time.sleep(delay_sec)
+        except Exception as e:
+            logger.exception("Temp file remove failed: %s", e)
+            return
+
+
+@app.get("/research/download_pdf/{rel_path:path}", name="download_pdf")
+async def download_pdf(rel_path: str) -> FileResponse:
+    logger.info("GET /research/download_pdf/%s", rel_path)
+
+    target = safe_join(rel_path)
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    if target.suffix.lower() != ".md":
+        raise HTTPException(status_code=400, detail="MD 파일만 PDF 변환을 지원합니다.")
+
+    md_text = read_text_file(target)
+    if md_text is None:
+        raise HTTPException(status_code=500, detail="MD 파일을 읽을 수 없습니다.")
+
+    rel_norm = rel_path.replace("\\", "/")
+
+    fd, tmp_name = tempfile.mkstemp(prefix="mdpdf_", suffix=".pdf")
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+
+    try:
+        build_pdf_from_markdown_file(rel_norm, md_text, tmp_path)
+    except Exception as e:
+        safe_remove_file(str(tmp_path))
+        logger.exception("PDF convert failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"PDF 변환 실패: {e}")
+
+    pdf_name = f"{target.stem}.pdf"
+    headers = {"Content-Disposition": build_content_disposition(pdf_name)}
+
+    # ✅ 중요: 여기서 지우지 말고, 응답이 끝난 뒤 BackgroundTask로 삭제
+    return FileResponse(
+        path=str(tmp_path),
+        media_type="application/pdf",
+        headers=headers,
+        background=BackgroundTask(safe_remove_file, str(tmp_path)),
+    )
+
+# ======= 라우트: 미리보기 렌더 API (에디터 split view) =======
+
+@app.post("/research/render_preview", response_class=HTMLResponse, name="render_preview")
+async def render_preview_api(
+    content: str = Form(...),
+) -> HTMLResponse:
+    logger.info("POST /research/render_preview")
+    html_out = render_markdown(content)
+    return HTMLResponse(html_out)
+
+# ======= 라우트: 즐겨찾기 토글 =======
+
+@app.post("/research/favorite/toggle", response_class=HTMLResponse, name="toggle_favorite")
+async def toggle_favorite(
+    rel_path: str = Form(...),
+) -> RedirectResponse:
+    logger.info("POST /research/favorite/toggle (%s)", rel_path)
+    favorites = load_favorites()
+    if rel_path in favorites:
+        favorites.remove(rel_path)
+        logger.info("Removed from favorites: %s", rel_path)
+    else:
+        favorites.add(rel_path)
+        logger.info("Added to favorites: %s", rel_path)
+    save_favorites(favorites)
+
+    return RedirectResponse(
+        url=f"/research/view?rel_path={rel_path}",
+        status_code=303,
+    )
+
+# ======= 라우트: 전역 검색 =======
+
+def parse_search_query(q: str) -> Dict[str, Any]:
+    """
+    간단 DSL:
+      tag:DFT   → 태그 필터
+      status:done → 상태 필터
+      나머지는 본문/경로 전체 검색 텍스트
+    """
+    text_terms: List[str] = []
+    tag_filters: List[str] = []
+    status_filters: List[str] = []
+
+    for token in q.split():
+        if token.startswith("tag:"):
+            tag_filters.append(token[4:].lower())
+        elif token.startswith("status:"):
+            status_filters.append(token[7:].lower())
+        else:
+            text_terms.append(token.lower())
+
+    return {
+        "text_terms": text_terms,
+        "tag_filters": tag_filters,
+        "status_filters": status_filters,
+    }
+
+
+@app.get("/research/search", response_class=HTMLResponse, name="global_search")
+async def global_search(
+    request: Request,
+    q: Optional[str] = Query(None, description="전역 검색어 (tag: / status: 지원)"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(30, ge=10, le=200),
+) -> HTMLResponse:
+    logger.info("GET /research/search (q=%s, page=%s, page_size=%s)", q, page, page_size)
+
+    results: List[Dict[str, Any]] = []
+
+    if q:
+        parsed = parse_search_query(q)
+        text_terms: List[str] = parsed["text_terms"]
+        tag_filters: List[str] = parsed["tag_filters"]
+        status_filters: List[str] = parsed["status_filters"]
+
+        all_md_paths = [p for p in ROOT_DIR.rglob("*.md") if not is_under_history(p)]
+
+        logger.info("Global search scanning %d files", len(all_md_paths))
+
+        for p in tqdm(all_md_paths, desc="Global search", unit="file"):
+            info = get_md_info(p)
+            rel_path = info["rel_path"]
+            text = info["text"]
+            tags = [t.lower() for t in info.get("tags", [])]
+            status = info.get("status", "").lower()
+
+            # 태그 필터
+            if tag_filters:
+                if not all(t in tags for t in tag_filters):
+                    continue
+
+            # 상태 필터
+            if status_filters and status not in status_filters:
+                continue
+
+            haystack = (text + "\n" + rel_path).lower()
+
+            # 텍스트 필터
+            if text_terms and not all(term in haystack for term in text_terms):
+                continue
+
+            snippet_html = ""
+            if text_terms:
+                first_term = text_terms[0]
+                idx = haystack.find(first_term)
+                if idx < 0:
+                    idx = 0
+            else:
+                idx = 0
+
+            raw = info["text"]
+            if raw:
+                start = max(idx - 80, 0)
+                end = min(idx + 200, len(raw))
+                snippet_raw = raw[start:end].replace("\n", " ")
+                snippet_html = html.escape(snippet_raw)
+                for term in text_terms:
+                    escaped_term = html.escape(term)
+                    pattern = re.compile(re.escape(escaped_term), re.IGNORECASE)
+                    snippet_html = pattern.sub(
+                        lambda m: f"<mark>{m.group(0)}</mark>",
+                        snippet_html,
+                    )
+
+            mtime = info["mtime"]
+            modified = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
+
+            results.append(
+                {
+                    "name": info["name"],
+                    "rel_path": rel_path,
+                    "snippet_html": snippet_html,
+                    "tags": info.get("tags", []),
+                    "status": info.get("status", ""),
+                    "modified": modified,
+                    "modified_ts": mtime,
+                }
+            )
+
+        results.sort(key=lambda r: r["modified_ts"], reverse=True)
+
+    total = len(results)
+    total_pages = max((total + page_size - 1) // page_size, 1) if page_size else 1
+    if page > total_pages:
+        page = total_pages
+
+    start = (page - 1) * page_size
+    end = start + page_size
+    page_results = results[start:end]
+
+    return templates.TemplateResponse(
+        "search.html",
+        {
+            "request": request,
+            "q": q or "",
+            "results": page_results,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+        },
+    )
+
+# ======= 라우트: 전역 TODO / Task 뷰 =======
+
+@app.get("/research/tasks", response_class=HTMLResponse, name="tasks_view")
+async def tasks_view(
+    request: Request,
+    include_done: bool = Query(False, description="완료된 작업도 포함할지 여부"),
+) -> HTMLResponse:
+    logger.info("GET /research/tasks (include_done=%s)", include_done)
+
+    all_md_paths = [p for p in ROOT_DIR.rglob("*.md") if not is_under_history(p)]
+
+    logger.info("Tasks view scanning %d files", len(all_md_paths))
+
+    tasks_by_file: Dict[str, Dict[str, Any]] = {}
+
+    for p in tqdm(all_md_paths, desc="Scan tasks", unit="file"):
+        info = get_md_info(p)
+        rel_path = info["rel_path"]
+        tasks = info.get("tasks", [])
+        if not tasks:
+            continue
+
+        filtered_tasks = [
+            t for t in tasks if include_done or not t.get("done")
+        ]
+        if not filtered_tasks:
+            continue
+
+        tasks_by_file[rel_path] = {
+            "name": info["name"],
+            "rel_path": rel_path,
+            "tasks": filtered_tasks,
+        }
+
+    sorted_files = sorted(tasks_by_file.values(), key=lambda x: x["rel_path"].lower())
+
+    return templates.TemplateResponse(
+        "tasks.html",
+        {
+            "request": request,
+            "files": sorted_files,
+            "include_done": include_done,
+        },
+    )
+
+# ======= 라우트: 로그 뷰 =======
+
+@app.get("/research/debug/log", response_class=HTMLResponse, name="debug_log")
+async def debug_log(
+    request: Request,
+    lines: int = Query(500, ge=100, le=2000),
+) -> HTMLResponse:
+    logger.info("GET /research/debug/log (lines=%s)", lines)
+    text = ""
+    try:
+        with open(LOG_FILE, "r", encoding="utf-8", errors="ignore") as f:
+            all_lines = f.readlines()
+        tail = all_lines[-lines:]
+        text = "".join(tail)
+    except FileNotFoundError:
+        text = "로그 파일이 없습니다."
+    except Exception as e:
+        logger.exception("Failed to read log file: %s", e)
+        text = "로그를 읽는 중 오류가 발생했습니다."
+
+    return templates.TemplateResponse(
+        "debug_log.html",
+        {
+            "request": request,
+            "log_text": text,
+            "lines": lines,
+        },
+    )
+from pydantic import BaseModel
+
+class HighlightAddPayload(BaseModel):
+    rel_path: str
+    start: int
+    end: int
+    color: str = "#fff59d"
+    text: str = ""
+    content_hash: str = ""
+    note: Optional[str] = None
+
+class HighlightUpdatePayload(BaseModel):
+    rel_path: str
+    id: str
+    color: Optional[str] = None
+    note: Optional[str] = None
+
+class HighlightDeletePayload(BaseModel):
+    rel_path: str
+    id: str
+
+@app.get("/research/highlights", name="list_highlights")
+async def list_highlights(rel_path: str = Query(...)) -> JSONResponse:
+    rel_norm = rel_path.replace("\\", "/")
+    target = safe_join(rel_norm)
+    if not target.exists() or not target.is_file() or target.suffix.lower() != ".md":
+        raise HTTPException(status_code=400, detail="Invalid md file")
+
+    md_text = read_text_file(target) or ""
+    current_hash = _get_note_hash(md_text)
+
+    store = _load_highlights_store()
+    items = store.get(rel_norm, [])
+    if not isinstance(items, list):
+        items = []
+
+    # stale 여부 같이 내려줌
+    out = []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        it2 = dict(it)
+        it2["stale"] = (it2.get("content_hash") and it2.get("content_hash") != current_hash)
+        out.append(it2)
+
+    return JSONResponse({"ok": True, "rel_path": rel_norm, "content_hash": current_hash, "items": out})
+
+@app.post("/research/highlights/add", name="add_highlight")
+async def add_highlight(payload: HighlightAddPayload) -> JSONResponse:
+    rel_norm = payload.rel_path.replace("\\", "/")
+    target = safe_join(rel_norm)
+    if not target.exists() or not target.is_file() or target.suffix.lower() != ".md":
+        raise HTTPException(status_code=400, detail="Invalid md file")
+
+    start = int(payload.start)
+    end = int(payload.end)
+    if start < 0 or end <= start:
+        raise HTTPException(status_code=400, detail="Invalid range")
+
+    color = _sanitize_color(payload.color)
+    note = (payload.note or "").strip()
+    if len(note) > 500:
+        note = note[:500]
+
+    md_text = read_text_file(target) or ""
+    current_hash = _get_note_hash(md_text)
+
+    # 겹침 방지(단순)
+    store = _load_highlights_store()
+    items = store.get(rel_norm, [])
+    if not isinstance(items, list):
+        items = []
+
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        s = int(it.get("start", -1))
+        e = int(it.get("end", -1))
+        if not (end <= s or start >= e):
+            raise HTTPException(status_code=409, detail="Overlapping highlight exists")
+
+    hid = uuid.uuid4().hex
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    item = {
+        "id": hid,
+        "start": start,
+        "end": end,
+        "color": color,
+        "text": (payload.text or "")[:2000],
+        "note": note,
+        "created_at": now,
+        "updated_at": now,
+        # 저장 당시 해시(없으면 현재 해시로)
+        "content_hash": payload.content_hash or current_hash,
+    }
+
+    items.append(item)
+    # 정렬(시작 오프셋 기준)
+    items.sort(key=lambda x: int(x.get("start", 0)))
+
+    store[rel_norm] = items
+    _save_highlights_store(store)
+
+    logger.info("Highlight added: %s (%s %d-%d)", rel_norm, hid, start, end)
+    return JSONResponse({"ok": True, "id": hid, "item": item, "content_hash": current_hash})
+
+@app.post("/research/highlights/update", name="update_highlight")
+async def update_highlight(payload: HighlightUpdatePayload) -> JSONResponse:
+    rel_norm = payload.rel_path.replace("\\", "/")
+    target = safe_join(rel_norm)
+    if not target.exists() or not target.is_file() or target.suffix.lower() != ".md":
+        raise HTTPException(status_code=400, detail="Invalid md file")
+
+    store = _load_highlights_store()
+    items = store.get(rel_norm, [])
+    if not isinstance(items, list):
+        raise HTTPException(status_code=404, detail="No highlights")
+
+    hid = payload.id
+    updated = False
+    for it in items:
+        if isinstance(it, dict) and it.get("id") == hid:
+            if payload.color is not None:
+                it["color"] = _sanitize_color(payload.color)
+            if payload.note is not None:
+                note = (payload.note or "").strip()
+                it["note"] = note[:500]
+            it["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            updated = True
+            break
+
+    if not updated:
+        raise HTTPException(status_code=404, detail="Highlight not found")
+
+    store[rel_norm] = items
+    _save_highlights_store(store)
+
+    logger.info("Highlight updated: %s (%s)", rel_norm, hid)
+    return JSONResponse({"ok": True})
+
+@app.post("/research/highlights/delete", name="delete_highlight")
+async def delete_highlight(payload: HighlightDeletePayload) -> JSONResponse:
+    rel_norm = payload.rel_path.replace("\\", "/")
+    target = safe_join(rel_norm)
+    if not target.exists() or not target.is_file() or target.suffix.lower() != ".md":
+        raise HTTPException(status_code=400, detail="Invalid md file")
+
+    store = _load_highlights_store()
+    items = store.get(rel_norm, [])
+    if not isinstance(items, list):
+        items = []
+
+    before = len(items)
+    items = [it for it in items if not (isinstance(it, dict) and it.get("id") == payload.id)]
+    after = len(items)
+
+    store[rel_norm] = items
+    _save_highlights_store(store)
+
+    logger.info("Highlight deleted: %s (%s) %d->%d", rel_norm, payload.id, before, after)
+    return JSONResponse({"ok": True})
+
+
+# ======= 개발용 실행 =======
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("main:app", host="0.0.0.0", port=8151, reload=True)
