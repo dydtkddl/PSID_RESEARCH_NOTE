@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block title %}{{ document.title }} - Research Platform{% endblock %}
 
@@ -113,6 +113,21 @@ MathJax = {
                     <span>목차</span>
                 </button>
             </div>
+            <!-- View Mode Toggle -->
+            <div class="view-mode-toggle">
+                <button class="btn btn-ghost btn-sm active" id="rendered-view-btn" title="렌더링 뷰">
+                    <i class="ri-article-line"></i>
+                    <span>렌더링</span>
+                </button>
+                <button class="btn btn-ghost btn-sm" id="source-view-btn" title="원문 뷰">
+                    <i class="ri-code-s-slash-line"></i>
+                    <span>원문</span>
+                </button>
+                <button class="btn btn-ghost btn-sm" id="split-view-btn" title="나란히 보기">
+                    <i class="ri-layout-column-line"></i>
+                    <span>나란히</span>
+                </button>
+            </div>
         </div>
         <div class="toolbar-center">
             <!-- Font size -->
@@ -143,7 +158,7 @@ MathJax = {
     </div>
     
     <!-- Main Content Area -->
-    <div class="viewer-main">
+    <div class="viewer-main" id="viewer-main">
         <!-- Table of Contents Sidebar -->
         <aside class="toc-sidebar" id="toc-sidebar">
             <div class="toc-header">
@@ -157,62 +172,148 @@ MathJax = {
             </nav>
         </aside>
         
-        <!-- Document Content -->
+        <!-- Rendered Document Content -->
         <article class="document-content markdown-body" id="document-content">
-            {% if document.doc_metadata and document.doc_metadata.paper_title %}
-            <!-- Paper Metadata Card -->
-            <header class="paper-header-card">
-                <h1 class="paper-title">{{ document.doc_metadata.short_title or document.doc_metadata.paper_title }}</h1>
-                {% if document.doc_metadata.short_title and document.doc_metadata.paper_title != document.doc_metadata.short_title %}
-                <p class="paper-original-title">{{ document.doc_metadata.paper_title }}</p>
-                {% endif %}
-                <div class="paper-meta-grid">
-                    {% if document.doc_metadata.authors %}
-                    <div class="meta-item">
-                        <i class="ri-user-line"></i>
-                        <span>{{ document.doc_metadata.authors }}</span>
+            {% set meta = document.doc_metadata %}
+            {% if meta and meta.paper_title is defined and meta.paper_title %}
+            <!-- Paper Metadata Card - PSID LAB Branded -->
+            <header class="fm-header" id="fm-header">
+                <div class="fm-header-top">
+                    <div class="fm-badge">
+                        {% if meta.category %}
+                        <span class="fm-category-badge">{{ meta.category }}</span>
+                        {% endif %}
+                        {% if meta.status %}
+                        <span class="fm-status-badge fm-status-{{ meta.status }}">{{ meta.status }}</span>
+                        {% endif %}
+                        {% if meta.year %}
+                        <span class="fm-year-badge">{{ meta.year }}</span>
+                        {% endif %}
+                    </div>
+                    <button class="btn btn-ghost btn-sm fm-collapse-btn" id="fm-collapse-btn" title="접기/펼치기">
+                        <i class="ri-arrow-up-s-line"></i>
+                    </button>
+                </div>
+                
+                <div class="fm-body" id="fm-body">
+                    {% if meta.short_title %}
+                    <h2 class="fm-title">{{ meta.short_title }}</h2>
+                    {% endif %}
+                    {% if meta.paper_title and (meta.short_title is not defined or meta.paper_title != meta.short_title) %}
+                    <p class="fm-original-title">{{ meta.paper_title }}</p>
+                    {% endif %}
+                    
+                    <div class="fm-meta-grid">
+                        {% if meta.authors %}
+                        <div class="fm-meta-item">
+                            <div class="fm-meta-icon"><i class="ri-team-line"></i></div>
+                            <div class="fm-meta-content">
+                                <span class="fm-meta-label">저자</span>
+                                <span class="fm-meta-value">{{ meta.authors }}</span>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% if meta.journal %}
+                        <div class="fm-meta-item">
+                            <div class="fm-meta-icon"><i class="ri-book-open-line"></i></div>
+                            <div class="fm-meta-content">
+                                <span class="fm-meta-label">저널</span>
+                                <span class="fm-meta-value">{{ meta.journal }}{% if meta.year %} ({{ meta.year }}){% endif %}</span>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% if meta.date %}
+                        <div class="fm-meta-item">
+                            <div class="fm-meta-icon"><i class="ri-calendar-event-line"></i></div>
+                            <div class="fm-meta-content">
+                                <span class="fm-meta-label">날짜</span>
+                                <span class="fm-meta-value">{{ meta.date }}</span>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% if meta.file_ref %}
+                        <div class="fm-meta-item">
+                            <div class="fm-meta-icon"><i class="ri-file-text-line"></i></div>
+                            <div class="fm-meta-content">
+                                <span class="fm-meta-label">원본 파일</span>
+                                <span class="fm-meta-value fm-file-ref">{{ meta.file_ref }}</span>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    {% if meta.tags %}
+                    <div class="fm-tags">
+                        {% for tag in meta.tags %}
+                        <span class="fm-tag">#{{ tag }}</span>
+                        {% endfor %}
                     </div>
                     {% endif %}
-                    {% if document.doc_metadata.journal %}
-                    <div class="meta-item">
-                        <i class="ri-book-line"></i>
-                        <span>{{ document.doc_metadata.journal }}{% if document.doc_metadata.year %} ({{ document.doc_metadata.year }}){% endif %}</span>
-                    </div>
-                    {% endif %}
-                    {% if document.doc_metadata.date %}
-                    <div class="meta-item">
-                        <i class="ri-calendar-line"></i>
-                        <span>{{ document.doc_metadata.date }}</span>
-                    </div>
-                    {% endif %}
-                    {% if document.doc_metadata.category %}
-                    <div class="meta-item">
-                        <i class="ri-folder-line"></i>
-                        <span>{{ document.doc_metadata.category }}</span>
+                    
+                    {% if meta.summary %}
+                    <div class="fm-summary">
+                        <div class="fm-summary-header">
+                            <i class="ri-lightbulb-flash-line"></i>
+                            <span>핵심 요약</span>
+                        </div>
+                        <p class="fm-summary-text">{{ meta.summary }}</p>
                     </div>
                     {% endif %}
                 </div>
-                {% if document.doc_metadata.tags %}
-                <div class="paper-tags">
-                    {% for tag in document.doc_metadata.tags %}
-                    <span class="paper-tag">#{{ tag }}</span>
-                    {% endfor %}
-                </div>
-                {% endif %}
-                {% if document.doc_metadata.summary %}
-                <div class="summary-box">
-                    <div class="summary-title">
-                        <i class="ri-lightbulb-line"></i>
-                        <span>핵심 요약</span>
+            </header>
+            {% elif meta and meta.keys()|list|length > 0 %}
+            <!-- Generic Frontmatter (non-paper) -->
+            <header class="fm-header fm-header-generic" id="fm-header">
+                <div class="fm-header-top">
+                    <div class="fm-badge">
+                        <span class="fm-category-badge">메타데이터</span>
                     </div>
-                    <p>{{ document.doc_metadata.summary }}</p>
+                    <button class="btn btn-ghost btn-sm fm-collapse-btn" id="fm-collapse-btn" title="접기/펼치기">
+                        <i class="ri-arrow-up-s-line"></i>
+                    </button>
                 </div>
-                {% endif %}
+                <div class="fm-body" id="fm-body">
+                    <div class="fm-generic-grid">
+                        {% for key, value in meta.items() %}
+                        <div class="fm-generic-item">
+                            <span class="fm-generic-key">{{ key }}</span>
+                            <span class="fm-generic-value">
+                                {% if value is iterable and value is not string %}
+                                    {% for v in value %}
+                                    <span class="fm-tag">{{ v }}</span>
+                                    {% endfor %}
+                                {% else %}
+                                    {{ value }}
+                                {% endif %}
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
             </header>
             {% endif %}
             
             {{ document.content_html | safe }}
         </article>
+        
+        <!-- Raw Source View (hidden by default) -->
+        <div class="source-view" id="source-view" style="display: none;">
+            <div class="source-toolbar">
+                <span class="source-label">
+                    <i class="ri-code-s-slash-line"></i> Markdown 원문
+                </span>
+                <div class="source-actions">
+                    <button class="btn btn-ghost btn-sm" id="copy-source-btn" title="원문 복사">
+                        <i class="ri-file-copy-line"></i>
+                        <span>복사</span>
+                    </button>
+                    <button class="btn btn-ghost btn-sm" id="wrap-source-btn" title="줄바꿈 토글">
+                        <i class="ri-text-wrap"></i>
+                    </button>
+                </div>
+            </div>
+            <pre class="source-content" id="source-content"><code>{{ raw_content | e }}</code></pre>
+        </div>
         
         <!-- Comments Sidebar -->
         <aside class="comments-sidebar" id="comments-sidebar">
@@ -297,4 +398,3 @@ const CAN_EDIT = {{ 'true' if can_edit else 'false' }};
 {% block extra_scripts %}
 <script src="{{ root_path }}/static/js/viewer.js"></script>
 {% endblock %}
-

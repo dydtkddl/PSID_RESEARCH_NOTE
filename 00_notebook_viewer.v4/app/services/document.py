@@ -61,6 +61,7 @@ class DocumentService:
     def extract_frontmatter(cls, content: str) -> Tuple[Dict[str, Any], str]:
         """Extract YAML frontmatter from markdown content."""
         import yaml
+        from datetime import date, datetime
         
         # Normalize line endings
         content = content.replace('\r\n', '\n')
@@ -77,7 +78,15 @@ class DocumentService:
                 body = parts[2].strip()
                 
                 frontmatter = yaml.safe_load(raw_yaml)
-                return frontmatter or {}, body
+                if not isinstance(frontmatter, dict):
+                    return {}, content
+                
+                # Convert date/datetime objects to strings for JSON serialization
+                for key, value in frontmatter.items():
+                    if isinstance(value, (date, datetime)):
+                        frontmatter[key] = value.isoformat()
+                
+                return frontmatter, body
             
             return {}, content
         except Exception as e:

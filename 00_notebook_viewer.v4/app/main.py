@@ -25,6 +25,9 @@ from app.services.document import DocumentService
 
 # Import routers
 from app.api.routers import auth, documents, workspaces, organizations, users, invites, notifications
+from app.api.routers import export as export_router
+from app.api.routers import feedback as feedback_router
+from app.api.routers import websocket as ws_router
 
 
 # ============ Constants ============
@@ -32,7 +35,7 @@ from app.api.routers import auth, documents, workspaces, organizations, users, i
 # nginx proxy_redirect가 자동으로 / → /research/ 변환해주므로
 # RedirectResponse에는 prefix 불필요
 # 단, 템플릿/JS에서 브라우저가 직접 요청하는 URL에는 prefix 필요
-PREFIX = "/research"
+PREFIX = settings.ROOT_PATH if not settings.DEBUG else ""
 
 
 # ============ App Setup ============
@@ -111,13 +114,14 @@ async def add_request_id(request: Request, call_next):
 
 STATIC_DIR = Path(__file__).parent.parent / "static_new"
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates_new"
-NOTES_ROOT = Path(r"c:\Users\user\Desktop\Reseach_Note")
+# Uploads directory
+UPLOAD_DIR = STATIC_DIR / "uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 STATIC_DIR.mkdir(exist_ok=True)
 TEMPLATES_DIR.mkdir(exist_ok=True)
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-app.mount("/notes", StaticFiles(directory=str(NOTES_ROOT)), name="notes")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 # 템플릿에서 {{ root_path }}/static/... 등 브라우저 URL용
@@ -133,6 +137,9 @@ app.include_router(organizations.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(invites.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
+app.include_router(export_router.router, prefix="/api/v1")
+app.include_router(feedback_router.router)
+app.include_router(ws_router.router)
 
 
 # ============ Web Routes ============
@@ -182,6 +189,12 @@ async def register_page(
     })
 
 
+@app.get("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_page(request: Request):
+    """Forgot password page - redirects to login with message."""
+    return RedirectResponse(url="/login")
+
+
 @app.get("/workspaces/{workspace_id}", response_class=HTMLResponse)
 async def workspace_page(
     workspace_id: str,
@@ -222,12 +235,33 @@ async def document_view_page(
     is_favorited = DocumentService.is_favorited(db, current_user.id, document_id)
     can_edit = PermissionService.can_write(db, current_user.id, document)
 
+    # Parse frontmatter if doc_metadata is empty but content has it
+    doc_metadata = document.doc_metadata
+    if (not doc_metadata or doc_metadata == {}) and document.content and document.content.startswith("---\n"):
+        doc_metadata, body = DocumentService.extract_frontmatter(document.content)
+        # Re-render HTML without frontmatter
+        if doc_metadata:
+            document.content_html = DocumentService.render_markdown(body)
+            document.doc_metadata = doc_metadata
+            db.add(document)
+            db.commit()
+            db.refresh(document)
+
+    # Extract raw frontmatter text for source view
+    raw_frontmatter = ""
+    if document.content and document.content.startswith("---\n"):
+        parts = document.content.split("---\n", 2)
+        if len(parts) >= 3:
+            raw_frontmatter = "---\n" + parts[1] + "---"
+
     return templates.TemplateResponse("viewer.html", {
         "request": request,
         "user": current_user,
         "document": document,
         "is_favorited": is_favorited,
         "can_edit": can_edit,
+        "raw_content": document.content or "",
+        "raw_frontmatter": raw_frontmatter,
     })
 
 

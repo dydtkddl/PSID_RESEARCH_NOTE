@@ -644,7 +644,38 @@ import os
 UPLOAD_DIR = Path(__file__).parent.parent.parent.parent / "static_new" / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
-ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
+ALLOWED_EXTENSIONS = {
+    # Images
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg",
+    # Documents
+    ".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx",
+    # Data
+    ".csv", ".json", ".yaml", ".yml", ".xml",
+    # Text
+    ".txt", ".md", ".rst", ".log",
+    # Archives
+    ".zip", ".tar", ".gz",
+}
+
+FILE_TYPE_ICONS = {
+    ".pdf": "ri-file-pdf-line",
+    ".csv": "ri-file-excel-line",
+    ".xlsx": "ri-file-excel-line",
+    ".xls": "ri-file-excel-line",
+    ".docx": "ri-file-word-line",
+    ".doc": "ri-file-word-line",
+    ".pptx": "ri-file-ppt-line",
+    ".json": "ri-code-s-slash-line",
+    ".yaml": "ri-code-s-slash-line",
+    ".yml": "ri-code-s-slash-line",
+    ".zip": "ri-file-zip-line",
+    ".tar": "ri-file-zip-line",
+    ".gz": "ri-file-zip-line",
+    ".txt": "ri-file-text-line",
+    ".md": "ri-markdown-line",
+}
+
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
 
 @router.post("/{document_id}/upload")
@@ -654,7 +685,7 @@ async def upload_file(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Upload an image for a document."""
+    """Upload a file (images, PDFs, CSVs, etc.) for a document."""
     # Verify document access
     document = db.query(Document).filter(Document.id == document_id).first()
     if not document:
@@ -666,21 +697,36 @@ async def upload_file(
     # Check file extension
     ext = Path(file.filename).suffix.lower() if file.filename else ""
     if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail=f"File type not allowed. Allowed: {ALLOWED_EXTENSIONS}")
+        raise HTTPException(status_code=400, detail=f"File type not allowed. Allowed types: images, PDF, CSV, JSON, etc.")
+    
+    # Read content and check size
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File too large. Maximum 50MB allowed.")
     
     # Generate unique filename
     unique_name = f"{uuid_lib.uuid4().hex}{ext}"
     file_path = UPLOAD_DIR / unique_name
     
     # Save file
-    content = await file.read()
     with open(file_path, "wb") as f:
         f.write(content)
     
-    # Return URL
+    # Determine file type
+    is_image = ext in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
+    icon = FILE_TYPE_ICONS.get(ext, "ri-file-line")
+    
+    # Return URL and metadata
     url = f"/static/uploads/{unique_name}"
     
-    return {"url": url, "filename": file.filename}
+    return {
+        "url": url,
+        "filename": file.filename,
+        "size": len(content),
+        "type": ext.lstrip("."),
+        "is_image": is_image,
+        "icon": icon,
+    }
 
 
 # ============ Helpers ============

@@ -1,252 +1,71 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
-{% block title %}도움말 - Research Platform{% endblock %}
-
-{% block breadcrumb %}
-<a href="{{ root_path }}/">홈</a>
-<i class="ri-arrow-right-s-line"></i>
-<span>도움말</span>
-{% endblock %}
+{% block title %}Help & Guide - Research Platform{% endblock %}
 
 {% block content %}
 <div class="help-page">
-    <header class="page-header">
-        <h1><i class="ri-question-line"></i> 도움말</h1>
-        <p>Research Platform 사용 가이드</p>
-    </header>
-    
-    <div class="help-content">
-        <!-- 문서 작성 가이드 -->
-        <section class="help-section" id="writing-guide">
-            <h2><i class="ri-book-open-line"></i> 문서 작성 가이드</h2>
-            <div class="help-card">
-                <h3>마크다운 기본 문법</h3>
-                <div class="syntax-grid">
-                    <div class="syntax-item">
-                        <code># 제목 1</code>
-                        <span>큰 제목</span>
-                    </div>
-                    <div class="syntax-item">
-                        <code>## 제목 2</code>
-                        <span>중간 제목</span>
-                    </div>
-                    <div class="syntax-item">
-                        <code>**굵게**</code>
-                        <span><strong>굵게</strong></span>
-                    </div>
-                    <div class="syntax-item">
-                        <code>*기울임*</code>
-                        <span><em>기울임</em></span>
-                    </div>
-                    <div class="syntax-item">
-                        <code>[링크](url)</code>
-                        <span>하이퍼링크</span>
-                    </div>
-                    <div class="syntax-item">
-                        <code>![이미지](url)</code>
-                        <span>이미지 삽입</span>
-                    </div>
-                    <div class="syntax-item">
-                        <code>- 항목</code>
-                        <span>목록</span>
-                    </div>
-                    <div class="syntax-item">
-                        <code>```code```</code>
-                        <span>코드 블록</span>
-                    </div>
-                </div>
-                
-                <h3 style="margin-top: 24px;">수식 입력 (LaTeX)</h3>
-                <div class="syntax-grid">
-                    <div class="syntax-item">
-                        <code>$E = mc^2$</code>
-                        <span>인라인 수식</span>
-                    </div>
-                    <div class="syntax-item">
-                        <code>$$\sum_{i=1}^n x_i$$</code>
-                        <span>블록 수식</span>
-                    </div>
-                </div>
-            </div>
-        </section>
-        
-        <!-- 단축키 -->
-        <section class="help-section" id="shortcuts">
-            <h2><i class="ri-keyboard-line"></i> 단축키</h2>
-            <div class="help-card">
-                <div class="shortcut-grid">
-                    <div class="shortcut-item">
-                        <kbd>Ctrl</kbd> + <kbd>K</kbd>
-                        <span>검색</span>
-                    </div>
-                    <div class="shortcut-item">
-                        <kbd>Ctrl</kbd> + <kbd>S</kbd>
-                        <span>저장 (에디터)</span>
-                    </div>
-                    <div class="shortcut-item">
-                        <kbd>Ctrl</kbd> + <kbd>B</kbd>
-                        <span>굵게</span>
-                    </div>
-                    <div class="shortcut-item">
-                        <kbd>Ctrl</kbd> + <kbd>I</kbd>
-                        <span>기울임</span>
-                    </div>
-                    <div class="shortcut-item">
-                        <kbd>Ctrl</kbd> + <kbd>L</kbd>
-                        <span>링크 삽입</span>
-                    </div>
-                    <div class="shortcut-item">
-                        <kbd>Esc</kbd>
-                        <span>모달 닫기</span>
-                    </div>
-                </div>
-            </div>
-        </section>
-        
-        <!-- 피드백 -->
-        <section class="help-section" id="feedback">
-            <h2><i class="ri-feedback-line"></i> 피드백</h2>
-            <div class="help-card">
-                <p>Research Platform을 사용하시면서 불편한 점이나 개선 아이디어가 있으시면 알려주세요!</p>
-                <form id="feedback-form" style="margin-top: 16px;">
-                    <div class="form-group">
-                        <label>피드백 유형</label>
-                        <select id="feedback-type">
-                            <option value="bug">버그 신고</option>
-                            <option value="feature">기능 요청</option>
-                            <option value="improvement">개선 제안</option>
-                            <option value="other">기타</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>내용</label>
-                        <textarea id="feedback-content" rows="4" placeholder="피드백 내용을 입력해주세요..."></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="ri-send-plane-line"></i> 피드백 보내기
-                    </button>
-                </form>
-            </div>
-        </section>
+    <div class="page-header">
+        <h1>Help & Guide</h1>
+        <p class="subtitle">Everything you need to know about Research Platform</p>
+    </div>
+
+    <div id="help-content">
+        <div class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>Loading help content...</p>
+        </div>
     </div>
 </div>
-
-<style>
-.help-page {
-    max-width: 900px;
-    margin: 0 auto;
-}
-
-.page-header {
-    margin-bottom: 32px;
-}
-
-.page-header h1 {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 8px;
-}
-
-.page-header p {
-    color: var(--text-secondary);
-}
-
-.help-section {
-    margin-bottom: 32px;
-}
-
-.help-section h2 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 16px;
-    font-size: 1.25rem;
-}
-
-.help-card {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    padding: 24px;
-}
-
-.syntax-grid, .shortcut-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 12px;
-}
-
-.syntax-item, .shortcut-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 12px;
-    background: var(--bg-tertiary);
-    border-radius: var(--radius-sm);
-}
-
-.syntax-item code {
-    font-family: 'Fira Code', monospace;
-    color: var(--accent-primary);
-}
-
-kbd {
-    display: inline-block;
-    padding: 4px 8px;
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    font-size: 0.8125rem;
-    font-family: inherit;
-}
-
-.form-group {
-    margin-bottom: 16px;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 500;
-}
-
-.form-group select,
-.form-group textarea {
-    width: 100%;
-    padding: 10px 12px;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    color: var(--text-primary);
-    font-family: inherit;
-}
-
-.form-group textarea {
-    resize: vertical;
-}
-</style>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-document.getElementById('feedback-form')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const type = document.getElementById('feedback-type').value;
-    const content = document.getElementById('feedback-content').value;
-    
-    if (!content.trim()) {
-        toast.error('피드백 내용을 입력해주세요');
-        return;
+document.addEventListener('DOMContentLoaded', async () => {
+    const container = document.getElementById('help-content');
+    try {
+        const data = await api.get('/help');
+        let html = '';
+
+        // Render sections
+        for (const section of data.sections) {
+            html += `
+            <div class="help-section">
+                <div class="help-section-header">
+                    <i class="${section.icon}"></i>
+                    <h2>${section.title}</h2>
+                </div>
+                ${section.items.map(item => `
+                    <div class="help-item">
+                        <div class="help-item-title">${escapeHtml(item.title)}</div>
+                        <div class="help-item-content">${escapeHtml(item.content)}</div>
+                    </div>
+                `).join('')}
+            </div>`;
+        }
+
+        // Render shortcuts
+        if (data.shortcuts && data.shortcuts.length > 0) {
+            html += `
+            <div class="help-section">
+                <div class="help-section-header">
+                    <i class="ri-keyboard-line"></i>
+                    <h2>Keyboard Shortcuts</h2>
+                </div>
+                <div class="shortcuts-grid">
+                    ${data.shortcuts.map(s => `
+                        <div class="shortcut-item">
+                            <span>${s.description}</span>
+                            <span class="shortcut-keys">${s.keys.map(k => `<span class="kbd">${k}</span>`).join('+')}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>`;
+        }
+
+        container.innerHTML = html;
+    } catch (e) {
+        container.innerHTML = '<div class="empty-state"><i class="ri-error-warning-line"></i><span>Failed to load help content</span></div>';
     }
-    
-    // 피드백을 콘솔에 로깅 (실제로는 서버에 저장)
-    console.log('Feedback:', { type, content });
-    
-    toast.success('피드백이 전송되었습니다. 감사합니다!');
-    document.getElementById('feedback-content').value = '';
 });
 </script>
 {% endblock %}
-
