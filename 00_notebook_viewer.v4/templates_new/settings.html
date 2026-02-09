@@ -1,198 +1,88 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
-{% block title %}설정 - Research Platform{% endblock %}
-
-{% block breadcrumb %}
-<a href="{{ root_path }}/">홈</a>
-<i class="ri-arrow-right-s-line"></i>
-<span>설정</span>
-{% endblock %}
+{% block title %}Settings - Research Platform{% endblock %}
 
 {% block content %}
 <div class="settings-page">
-    <h1>설정</h1>
-    
-    <div class="settings-grid">
-        <!-- Sidebar -->
-        <nav class="settings-nav">
-            <a href="#profile" class="settings-nav-item active">
-                <i class="ri-user-line"></i>
-                <span>프로필</span>
-            </a>
-            <a href="#account" class="settings-nav-item">
-                <i class="ri-lock-line"></i>
-                <span>계정 및 보안</span>
-            </a>
-            <a href="#appearance" class="settings-nav-item">
-                <i class="ri-palette-line"></i>
-                <span>외관</span>
-            </a>
-            <a href="#notifications" class="settings-nav-item">
-                <i class="ri-notification-3-line"></i>
-                <span>알림</span>
-            </a>
-        </nav>
-        
-        <!-- Content -->
-        <div class="settings-content">
-            <!-- Profile Section -->
-            <section id="profile" class="settings-section">
-                <h2>프로필</h2>
-                <form id="profile-form">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="display-name">표시 이름</label>
-                            <input type="text" id="display-name" value="{{ user.display_name }}">
-                        </div>
-                        <div class="form-group">
-                            <label for="email">이메일</label>
-                            <input type="email" id="email" value="{{ user.email }}" disabled>
-                        </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="bio">자기소개</label>
-                        <textarea id="bio" rows="3">{{ user.bio or '' }}</textarea>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary">저장</button>
-                </form>
-            </section>
-            
-            <!-- Account Section -->
-            <section id="account" class="settings-section">
-                <h2>계정 및 보안</h2>
-                <form id="password-form">
-                    <div class="form-group">
-                        <label for="current-password">현재 비밀번호</label>
-                        <input type="password" id="current-password">
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="new-password">새 비밀번호</label>
-                            <input type="password" id="new-password">
-                        </div>
-                        <div class="form-group">
-                            <label for="confirm-password">새 비밀번호 확인</label>
-                            <input type="password" id="confirm-password">
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary">비밀번호 변경</button>
-                </form>
-            </section>
-            
-            <!-- Appearance Section -->
-            <section id="appearance" class="settings-section">
-                <h2>외관</h2>
-                <div class="setting-item">
-                    <div class="setting-info">
-                        <h3>테마</h3>
-                        <p>앱 전체에 적용되는 색상 테마</p>
-                    </div>
-                    <select id="theme-select">
-                        <option value="dark" {{ 'selected' if user.theme == 'dark' else '' }}>다크</option>
-                        <option value="light" {{ 'selected' if user.theme == 'light' else '' }}>라이트</option>
-                    </select>
-                </div>
-            </section>
+    <div class="page-header">
+        <h1>Settings</h1>
+        <p class="subtitle">Manage your account and preferences</p>
+    </div>
+
+    <!-- Profile Section -->
+    <div class="settings-section">
+        <h3>Profile</h3>
+        <form id="profile-form">
+            <div class="form-group">
+                <label for="display-name">Display Name</label>
+                <input type="text" id="display-name" value="{{ user.display_name or '' }}" placeholder="Your name">
+            </div>
+            <div class="form-group">
+                <label for="bio">Bio</label>
+                <textarea id="bio" rows="3" placeholder="Tell us about yourself">{{ user.bio or '' }}</textarea>
+            </div>
+            <div class="form-group">
+                <label for="avatar-url">Avatar URL</label>
+                <input type="url" id="avatar-url" value="{{ user.avatar_url or '' }}" placeholder="https://example.com/avatar.png">
+            </div>
+            <button type="submit" class="btn btn-primary">Save Profile</button>
+        </form>
+    </div>
+
+    <!-- Appearance Section -->
+    <div class="settings-section">
+        <h3>Appearance</h3>
+        <div class="settings-row">
+            <span class="settings-label">Dark Mode</span>
+            <input type="checkbox" class="toggle-switch" id="dark-mode-toggle"
+                   {% if user.theme == 'dark' %}checked{% endif %}>
+        </div>
+        <div class="settings-row">
+            <span class="settings-label">Language</span>
+            <select id="locale-select" style="padding: 4px 8px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-primary); color: var(--text-primary); font-size: var(--font-size-sm);">
+                <option value="ko" {% if user.locale == 'ko' %}selected{% endif %}>Korean</option>
+                <option value="en" {% if user.locale == 'en' %}selected{% endif %}>English</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Security Section -->
+    <div class="settings-section">
+        <h3>Security</h3>
+        <form id="password-form">
+            <div class="form-group">
+                <label for="current-password">Current Password</label>
+                <input type="password" id="current-password" placeholder="Enter current password">
+            </div>
+            <div class="form-group">
+                <label for="new-password">New Password</label>
+                <input type="password" id="new-password" placeholder="Enter new password" minlength="8">
+            </div>
+            <div class="form-group">
+                <label for="confirm-password">Confirm New Password</label>
+                <input type="password" id="confirm-password" placeholder="Confirm new password">
+            </div>
+            <button type="submit" class="btn btn-secondary">Change Password</button>
+        </form>
+    </div>
+
+    <!-- Account Info -->
+    <div class="settings-section">
+        <h3>Account</h3>
+        <div class="settings-row">
+            <span class="settings-label">Email</span>
+            <span style="font-size: var(--font-size-sm); color: var(--text-primary);">{{ user.email }}</span>
+        </div>
+        <div class="settings-row">
+            <span class="settings-label">Username</span>
+            <span style="font-size: var(--font-size-sm); color: var(--text-primary);">{{ user.username }}</span>
+        </div>
+        <div class="settings-row">
+            <span class="settings-label">Member since</span>
+            <span style="font-size: var(--font-size-sm); color: var(--text-tertiary);">{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else 'N/A' }}</span>
         </div>
     </div>
 </div>
-
-<style>
-.settings-page {
-    max-width: 1000px;
-    margin: 0 auto;
-}
-
-.settings-page h1 {
-    margin-bottom: 24px;
-}
-
-.settings-grid {
-    display: grid;
-    grid-template-columns: 200px 1fr;
-    gap: 24px;
-}
-
-.settings-nav {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.settings-nav-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: var(--radius-md);
-    color: var(--text-secondary);
-    transition: all var(--transition-fast);
-}
-
-.settings-nav-item:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-}
-
-.settings-nav-item.active {
-    background: var(--accent-primary-light);
-    color: var(--accent-primary);
-}
-
-.settings-section {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    padding: 24px;
-    margin-bottom: 24px;
-}
-
-.settings-section h2 {
-    font-size: 1.25rem;
-    margin-bottom: 20px;
-}
-
-.form-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-}
-
-.setting-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 0;
-}
-
-.setting-info h3 {
-    font-size: 0.9375rem;
-    margin-bottom: 4px;
-}
-
-.setting-info p {
-    font-size: 0.8125rem;
-    color: var(--text-secondary);
-}
-
-@media (max-width: 768px) {
-    .settings-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .settings-nav {
-        flex-direction: row;
-        overflow-x: auto;
-    }
-    
-    .form-row {
-        grid-template-columns: 1fr;
-    }
-}
-</style>
-
 {% endblock %}
 
 {% block extra_scripts %}
@@ -201,50 +91,43 @@ document.addEventListener('DOMContentLoaded', () => {
     // Profile form
     document.getElementById('profile-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        
         try {
             await api.put('/users/me', {
                 display_name: document.getElementById('display-name').value,
-                bio: document.getElementById('bio').value
+                bio: document.getElementById('bio').value,
+                avatar_url: document.getElementById('avatar-url').value,
             });
-            toast.success('프로필이 저장되었습니다');
-        } catch (error) {
-            toast.error('저장에 실패했습니다');
-        }
+            toast.success('Profile updated');
+        } catch (err) { toast.error('Failed to update profile'); }
     });
-    
+
+    // Theme toggle
+    document.getElementById('dark-mode-toggle')?.addEventListener('change', async (e) => {
+        const newTheme = e.target.checked ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        try { await api.put('/users/me', { theme: newTheme }); } catch (err) {}
+    });
+
+    // Locale
+    document.getElementById('locale-select')?.addEventListener('change', async (e) => {
+        try { await api.put('/users/me', { locale: e.target.value }); toast.success('Language updated'); } catch (err) {}
+    });
+
     // Password form
     document.getElementById('password-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        
         const current = document.getElementById('current-password').value;
-        const newPass = document.getElementById('new-password').value;
+        const newPw = document.getElementById('new-password').value;
         const confirm = document.getElementById('confirm-password').value;
-        
-        if (newPass !== confirm) {
-            toast.error('새 비밀번호가 일치하지 않습니다');
-            return;
-        }
-        
+        if (newPw !== confirm) { toast.error('Passwords do not match'); return; }
+        if (newPw.length < 8) { toast.error('Password must be at least 8 characters'); return; }
         try {
-            await api.post('/users/me/password', {
-                current_password: current,
-                new_password: newPass
-            });
-            toast.success('비밀번호가 변경되었습니다');
-            e.target.reset();
-        } catch (error) {
-            toast.error('비밀번호 변경에 실패했습니다');
-        }
-    });
-    
-    // Theme select
-    document.getElementById('theme-select')?.addEventListener('change', (e) => {
-        theme.theme = e.target.value;
-        localStorage.setItem('theme', e.target.value);
-        theme.apply();
+            await api.post('/users/me/password', { current_password: current, new_password: newPw });
+            toast.success('Password changed');
+            document.getElementById('password-form').reset();
+        } catch (err) { toast.error('Failed to change password'); }
     });
 });
 </script>
 {% endblock %}
-

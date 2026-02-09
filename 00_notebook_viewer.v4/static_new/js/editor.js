@@ -46,6 +46,23 @@ function initEditor() {
     editor.addEventListener('keyup', updateCursorPosition);
     editor.addEventListener('click', updateCursorPosition);
 
+    // Drag and drop file support on editor
+    editor.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        editor.style.borderColor = 'var(--accent-primary)';
+    });
+    editor.addEventListener('dragleave', () => {
+        editor.style.borderColor = '';
+    });
+    editor.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        editor.style.borderColor = '';
+        const files = e.dataTransfer.files;
+        for (const file of files) {
+            await uploadImage(file);
+        }
+    });
+
     // Complete button - save before navigating
     const completeBtn = document.getElementById('complete-btn');
     if (completeBtn) {
@@ -323,21 +340,36 @@ async function uploadImage(file) {
     formData.append('file', file);
 
     try {
-        const response = await fetch(`/api/v1/documents/${DOCUMENT_ID}/upload`, {
+        const rootPath = window.ROOT_PATH || '';
+        const response = await fetch(`${rootPath}/api/v1/documents/${DOCUMENT_ID}/upload`, {
             method: 'POST',
             body: formData,
-            credentials: 'include'
+            credentials: 'include',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
         });
 
         if (response.ok) {
             const data = await response.json();
             const editor = document.getElementById('markdown-editor');
-            insertText(editor, `![${file.name}](${data.url})`);
+            
+            if (data.is_image) {
+                insertText(editor, `![${file.name}](${data.url})`);
+            } else {
+                // For non-image files, insert as a download link
+                const sizeStr = data.size > 1024*1024 ? 
+                    `${(data.size/1024/1024).toFixed(1)}MB` : 
+                    `${(data.size/1024).toFixed(1)}KB`;
+                insertText(editor, `[📎 ${file.name} (${sizeStr})](${data.url})`);
+            }
+            
             document.getElementById('image-modal')?.classList.remove('active');
-            toast.success('이미지가 업로드되었습니다');
+            toast.success(`File uploaded: ${file.name}`);
+        } else {
+            const err = await response.json().catch(() => ({}));
+            toast.error(err.detail || 'Upload failed');
         }
     } catch (error) {
-        toast.error('이미지 업로드에 실패했습니다');
+        toast.error('File upload failed');
     }
 }
 

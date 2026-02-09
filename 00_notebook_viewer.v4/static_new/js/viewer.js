@@ -1,14 +1,18 @@
-﻿/**
- * Document Viewer JavaScript
+/**
+ * Document Viewer JavaScript - PSID LAB Edition
+ * Features: Source view toggle, Frontmatter header, PDF/MD export, Comments, Highlights
  */
 
 document.addEventListener('DOMContentLoaded', () => {
     initViewer();
+    initViewModeToggle();
+    initFrontmatterHeader();
     loadComments();
     buildTableOfContents();
     initHighlighting();
 });
 
+// ============ Core Viewer Init ============
 function initViewer() {
     // Favorite button
     const favoriteBtn = document.getElementById('favorite-btn');
@@ -40,6 +44,101 @@ function initViewer() {
     initDeleteModal();
 }
 
+// ============ View Mode Toggle (Rendered / Source / Split) ============
+function initViewModeToggle() {
+    const renderedBtn = document.getElementById('rendered-view-btn');
+    const sourceBtn = document.getElementById('source-view-btn');
+    const splitBtn = document.getElementById('split-view-btn');
+    const documentContent = document.getElementById('document-content');
+    const sourceView = document.getElementById('source-view');
+    const viewerMain = document.getElementById('viewer-main');
+
+    if (!renderedBtn || !sourceBtn || !splitBtn) return;
+
+    function setViewMode(mode) {
+        // Remove all active states
+        [renderedBtn, sourceBtn, splitBtn].forEach(b => b.classList.remove('active'));
+        viewerMain.classList.remove('split-view');
+        
+        switch (mode) {
+            case 'rendered':
+                renderedBtn.classList.add('active');
+                documentContent.style.display = '';
+                sourceView.style.display = 'none';
+                break;
+            case 'source':
+                sourceBtn.classList.add('active');
+                documentContent.style.display = 'none';
+                sourceView.style.display = '';
+                break;
+            case 'split':
+                splitBtn.classList.add('active');
+                documentContent.style.display = '';
+                sourceView.style.display = '';
+                viewerMain.classList.add('split-view');
+                break;
+        }
+        
+        localStorage.setItem('viewer-mode', mode);
+    }
+
+    renderedBtn.addEventListener('click', () => setViewMode('rendered'));
+    sourceBtn.addEventListener('click', () => setViewMode('source'));
+    splitBtn.addEventListener('click', () => setViewMode('split'));
+
+    // Source view actions
+    const copySourceBtn = document.getElementById('copy-source-btn');
+    if (copySourceBtn) {
+        copySourceBtn.addEventListener('click', () => {
+            const sourceContent = document.getElementById('source-content');
+            if (sourceContent) {
+                navigator.clipboard.writeText(sourceContent.textContent).then(() => {
+                    toast.success('원문이 클립보드에 복사되었습니다');
+                }).catch(() => {
+                    toast.error('복사에 실패했습니다');
+                });
+            }
+        });
+    }
+
+    const wrapSourceBtn = document.getElementById('wrap-source-btn');
+    if (wrapSourceBtn) {
+        wrapSourceBtn.addEventListener('click', () => {
+            const sourceContent = document.getElementById('source-content');
+            if (sourceContent) {
+                sourceContent.classList.toggle('nowrap');
+                wrapSourceBtn.classList.toggle('active');
+            }
+        });
+    }
+
+    // Restore saved mode
+    const savedMode = localStorage.getItem('viewer-mode') || 'rendered';
+    setViewMode(savedMode);
+}
+
+// ============ Frontmatter Header ============
+function initFrontmatterHeader() {
+    const collapseBtn = document.getElementById('fm-collapse-btn');
+    const fmBody = document.getElementById('fm-body');
+    
+    if (!collapseBtn || !fmBody) return;
+    
+    // Restore saved collapse state
+    const isCollapsed = localStorage.getItem('fm-collapsed') === 'true';
+    if (isCollapsed) {
+        fmBody.classList.add('collapsed');
+        collapseBtn.classList.add('collapsed');
+    }
+    
+    collapseBtn.addEventListener('click', () => {
+        fmBody.classList.toggle('collapsed');
+        collapseBtn.classList.toggle('collapsed');
+        localStorage.setItem('fm-collapsed', fmBody.classList.contains('collapsed'));
+    });
+}
+
+// ============ Favorite Toggle ============
 async function toggleFavorite() {
     const btn = document.getElementById('favorite-btn');
     const isFavorited = btn.dataset.favorited === 'true';
@@ -62,6 +161,7 @@ async function toggleFavorite() {
     }
 }
 
+// ============ Font Size ============
 function initFontSize() {
     let fontSize = parseInt(localStorage.getItem('viewer-font-size')) || 100;
     updateFontSize(fontSize);
@@ -81,8 +181,13 @@ function updateFontSize(size) {
     localStorage.setItem('viewer-font-size', size);
     document.getElementById('font-size-value').textContent = `${size}%`;
     document.getElementById('document-content').style.fontSize = `${size}%`;
+    const sourceContent = document.getElementById('source-content');
+    if (sourceContent) {
+        sourceContent.style.fontSize = `${Math.max(11, 13 * size / 100)}px`;
+    }
 }
 
+// ============ Table of Contents ============
 function buildTableOfContents() {
     const content = document.getElementById('document-content');
     const tocContent = document.getElementById('toc-content');
@@ -113,6 +218,7 @@ function buildTableOfContents() {
     });
 }
 
+// ============ Comments ============
 async function loadComments() {
     const container = document.getElementById('comments-list');
     const countBadge = document.getElementById('comments-count');
@@ -139,59 +245,33 @@ async function loadComments() {
             </div>
         `).join('');
         
-        // Add hover interaction for anchor text highlighting
         container.querySelectorAll('.comment-item[data-anchor]').forEach(item => {
-            item.addEventListener('mouseenter', () => {
-                const anchorText = item.dataset.anchor;
-                highlightTextInDocument(anchorText, true);
-            });
-            item.addEventListener('mouseleave', () => {
-                clearDocumentHighlights();
-            });
-            item.addEventListener('click', () => {
-                const anchorText = item.dataset.anchor;
-                scrollToTextInDocument(anchorText);
-            });
+            item.addEventListener('mouseenter', () => highlightTextInDocument(item.dataset.anchor, true));
+            item.addEventListener('mouseleave', () => clearDocumentHighlights());
+            item.addEventListener('click', () => scrollToTextInDocument(item.dataset.anchor));
         });
         
-        // Apply persistent highlights for all comments with anchor_text
         applyPersistentHighlights(comments);
     } catch (error) {
         console.error('Failed to load comments:', error);
     }
 }
 
-// Apply persistent highlights that stay on page load
 function applyPersistentHighlights(comments) {
-    console.log('[Highlights] Starting applyPersistentHighlights with', comments.length, 'comments');
     const content = document.getElementById('document-content');
-    if (!content) {
-        console.log('[Highlights] No document-content element found!');
-        return;
-    }
+    if (!content) return;
     
-    // Get all comments with anchor_text
-    const anchors = comments.filter(c => c.anchor_text).map(c => ({
-        id: c.id,
-        text: c.anchor_text
-    }));
-    
-    console.log('[Highlights] Found', anchors.length, 'comments with anchor_text');
+    const anchors = comments.filter(c => c.anchor_text).map(c => ({ id: c.id, text: c.anchor_text }));
     if (anchors.length === 0) return;
     
-    // Find and mark all anchor texts
     anchors.forEach(anchor => {
-        const searchText = anchor.text.substring(0, 80); // Use first 80 chars for matching
-        console.log('[Highlights] Searching for:', searchText.substring(0, 30) + '...');
+        const searchText = anchor.text.substring(0, 80);
         const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null, false);
         let node;
-        let found = false;
         
         while (node = walker.nextNode()) {
             const index = node.textContent.indexOf(searchText);
             if (index !== -1) {
-                found = true;
-                console.log('[Highlights] FOUND match, creating highlight');
                 try {
                     const range = document.createRange();
                     range.setStart(node, index);
@@ -200,11 +280,8 @@ function applyPersistentHighlights(comments) {
                     const mark = document.createElement('mark');
                     mark.className = 'comment-highlight-permanent';
                     mark.dataset.commentId = anchor.id;
-                    
                     range.surroundContents(mark);
-                    console.log('[Highlights] Mark element created successfully');
                     
-                    // Add click handler to scroll to comment in sidebar
                     mark.addEventListener('click', () => {
                         const commentItem = document.querySelector(`.comment-item[data-id="${anchor.id}"]`);
                         if (commentItem) {
@@ -214,28 +291,20 @@ function applyPersistentHighlights(comments) {
                         }
                     });
                 } catch (e) {
-                    console.log('[Highlights] Error creating mark:', e.message);
+                    // Range spans multiple nodes
                 }
                 break;
             }
         }
-        if (!found) {
-            console.log('[Highlights] NOT FOUND in document');
-        }
     });
 }
 
-// Highlight text in document when hovering over comment
 function highlightTextInDocument(text, highlight) {
     const content = document.getElementById('document-content');
     if (!content || !text) return;
-    
-    // Remove existing temp highlights
     clearDocumentHighlights();
-    
     if (!highlight) return;
     
-    // Find and highlight matching text
     const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null, false);
     let node;
     
@@ -248,14 +317,11 @@ function highlightTextInDocument(text, highlight) {
             
             const mark = document.createElement('mark');
             mark.className = 'comment-highlight-temp';
-            mark.style.cssText = 'background: rgba(255, 200, 0, 0.5); border-radius: 2px; transition: background 0.2s;';
             
             try {
                 range.surroundContents(mark);
                 mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            } catch (e) {
-                // Range spans multiple nodes, skip
-            }
+            } catch (e) {}
             break;
         }
     }
@@ -273,7 +339,7 @@ function scrollToTextInDocument(text) {
     highlightTextInDocument(text, true);
 }
 
-// Global variable to store pending anchor text for comment
+// ============ Comment Submission ============
 let pendingAnchorText = null;
 
 document.getElementById('submit-comment')?.addEventListener('click', async () => {
@@ -287,7 +353,7 @@ document.getElementById('submit-comment')?.addEventListener('click', async () =>
             anchor_text: pendingAnchorText || null
         });
         textarea.value = '';
-        pendingAnchorText = null;  // Clear after submission
+        pendingAnchorText = null;
         loadComments();
         toast.success('댓글이 추가되었습니다');
     } catch (error) {
@@ -295,6 +361,7 @@ document.getElementById('submit-comment')?.addEventListener('click', async () =>
     }
 });
 
+// ============ Highlight Colors ============
 let selectedColor = '#fff59d';
 
 function initHighlightColors() {
@@ -307,6 +374,7 @@ function initHighlightColors() {
     });
 }
 
+// ============ Highlighting ============
 function initHighlighting() {
     const content = document.getElementById('document-content');
     const popup = document.getElementById('highlight-popup');
@@ -335,7 +403,6 @@ function initHighlighting() {
             selection.range.surroundContents(span);
             toast.success('하이라이트가 추가되었습니다');
         } catch (e) {
-            // Selection spans multiple nodes, can't wrap
             toast.error('선택 범위가 너무 복잡합니다. 더 짧은 텍스트를 선택해주세요.');
         }
         popup.style.display = 'none';
@@ -349,14 +416,13 @@ function initHighlighting() {
         popup.style.display = 'none';
     });
 
-    // Add comment button - opens comments sidebar
     document.getElementById('add-comment')?.addEventListener('click', () => {
         const commentsSidebar = document.getElementById('comments-sidebar');
         if (commentsSidebar) {
             commentsSidebar.classList.add('active');
             const commentInput = document.getElementById('new-comment');
             if (selection) {
-                pendingAnchorText = selection.text;  // Store full text for anchor
+                pendingAnchorText = selection.text;
                 if (commentInput) {
                     commentInput.value = `"${selection.text.substring(0, 50)}${selection.text.length > 50 ? '...' : ''}" - `;
                     commentInput.focus();
@@ -367,6 +433,7 @@ function initHighlighting() {
     });
 }
 
+// ============ More Actions (Export, History, etc.) ============
 function initMoreActions() {
     const btn = document.getElementById('more-actions-btn');
     const menu = document.getElementById('more-actions-menu');
@@ -381,10 +448,93 @@ function initMoreActions() {
 
     document.getElementById('copy-link-btn')?.addEventListener('click', () => {
         navigator.clipboard.writeText(window.location.href);
-        toast.success('링크가 복사되었습니다');
+        toast.success('링크가 클립보드에 복사되었습니다');
     });
 
     document.getElementById('print-btn')?.addEventListener('click', () => window.print());
+
+    // PDF Export
+    document.getElementById('export-pdf-btn')?.addEventListener('click', async () => {
+        toast.info('PDF를 생성하고 있습니다...');
+        try {
+            const rootPath = window.ROOT_PATH || '';
+            const response = await fetch(`${rootPath}/api/v1/export/documents/${DOCUMENT_ID}/pdf`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+                credentials: 'include'
+            });
+            if (!response.ok) throw new Error('PDF generation failed');
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = (document.getElementById('document-title')?.textContent || 'document') + '.pdf';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            toast.success('PDF 다운로드가 완료되었습니다');
+        } catch (e) {
+            toast.error('PDF 내보내기 실패: ' + e.message);
+        }
+    });
+
+    // Markdown Download
+    document.getElementById('export-md-btn')?.addEventListener('click', async () => {
+        try {
+            const rootPath = window.ROOT_PATH || '';
+            const response = await fetch(`${rootPath}/api/v1/export/documents/${DOCUMENT_ID}/markdown`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+                credentials: 'include'
+            });
+            if (!response.ok) throw new Error('Download failed');
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = (document.getElementById('document-title')?.textContent || 'document') + '.md';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            toast.success('마크다운 다운로드가 완료되었습니다');
+        } catch (e) {
+            toast.error('다운로드 실패: ' + e.message);
+        }
+    });
+
+    // Version History
+    document.getElementById('history-btn')?.addEventListener('click', async () => {
+        const modal = document.getElementById('history-modal');
+        const list = document.getElementById('version-list');
+        if (!modal || !list) return;
+        
+        modal.classList.add('active');
+        list.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div></div>';
+        
+        try {
+            const versions = await api.get(`/documents/${DOCUMENT_ID}/versions`);
+            if (versions.length === 0) {
+                list.innerHTML = '<div class="empty-state"><i class="ri-history-line"></i><span>버전 기록이 없습니다</span></div>';
+                return;
+            }
+            list.innerHTML = versions.map(v => `
+                <div class="doc-list-item" style="padding: 12px;">
+                    <span class="doc-icon"><i class="ri-history-line"></i></span>
+                    <div style="flex:1;">
+                        <div style="font-weight:500;">v${v.version_number} - ${escapeHtml(v.title || 'Untitled')}</div>
+                        <div style="font-size:var(--font-size-xs);color:var(--text-muted);">${v.word_count || 0} words${v.change_summary ? ' - ' + escapeHtml(v.change_summary) : ''}</div>
+                    </div>
+                    <span class="doc-date">${formatDate(v.created_at)}</span>
+                </div>
+            `).join('');
+        } catch (e) {
+            list.innerHTML = '<div class="empty-state"><span>버전 목록을 불러올 수 없습니다</span></div>';
+        }
+    });
+
+    document.getElementById('close-history-modal')?.addEventListener('click', () => {
+        document.getElementById('history-modal')?.classList.remove('active');
+    });
 }
 
 // ============ Delete Document Modal ============
@@ -394,13 +544,11 @@ function initDeleteModal() {
     
     if (!deleteBtn || !modal) return;
     
-    // Open modal
     deleteBtn.addEventListener('click', () => {
         document.getElementById('more-actions-menu')?.classList.remove('show');
         modal.classList.add('active');
     });
     
-    // Close modal
     document.getElementById('close-delete-doc')?.addEventListener('click', () => {
         modal.classList.remove('active');
     });
@@ -408,12 +556,10 @@ function initDeleteModal() {
         modal.classList.remove('active');
     });
     
-    // Confirm delete
     document.getElementById('confirm-delete-doc')?.addEventListener('click', async () => {
         try {
             await api.delete(`/documents/${DOCUMENT_ID}`);
             toast.success('문서가 삭제되었습니다');
-            // Go back to workspace
             window.history.back();
         } catch (error) {
             toast.error('삭제에 실패했습니다');
@@ -421,4 +567,3 @@ function initDeleteModal() {
         }
     });
 }
-
